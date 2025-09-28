@@ -19,6 +19,7 @@ import {
 import { FileData, GraphState } from "../interfaces.ts";
 // @ts-ignore
 import { UseStream } from "@langchain/langgraph-sdk/dist/react/stream";
+import { BROWSER_USE_NAME } from "../config.ts";
 
 const InputContainer = styled.div`
   padding: 16px;
@@ -197,7 +198,10 @@ const InputArea: React.FC<InputAreaProps> = ({ thread }) => {
           ];
           return { ...prev, messages: newMessages };
         },
-        onDisconnect: "continue",
+        onDisconnect:
+          thread?.messages.at(-1).tool_calls[0]?.name === BROWSER_USE_NAME
+            ? "cancel"
+            : "continue",
       });
     },
     [thread],

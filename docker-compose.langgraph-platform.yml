@@ -1,5 +1,5 @@
 volumes:
-    aegra-data:
+    langgraph-data:
         driver: local
 services:
     langgraph-redis:
@@ -9,14 +9,14 @@ services:
             interval: 5s
             timeout: 1s
             retries: 5
-    aegra-postgres:
+    langgraph-postgres:
         image: postgres:16
         environment:
             POSTGRES_DB: postgres
             POSTGRES_USER: postgres
             POSTGRES_PASSWORD: postgres
         volumes:
-            - aegra-data:/var/lib/postgresql/data
+            - langgraph-data:/var/lib/postgresql/data
         healthcheck:
             test: pg_isready -U postgres
             start_period: 10s
@@ -24,26 +24,21 @@ services:
             retries: 5
             interval: 5s
     langgraph-api:
-        build:
-            context: ./backend/graph
+        image: giga_agent
         depends_on:
-            aegra-postgres:
+            langgraph-redis:
+                condition: service_healthy
+            langgraph-postgres:
                 condition: service_healthy
         env_file:
             - .docker.env
         environment:
             REDIS_URI: redis://langgraph-redis:6379
-            DATABASE_URL: postgresql+asyncpg://postgres:postgres@aegra-postgres:5432/postgres
-            AUTH_TYPE: noop
+            POSTGRES_URI: postgres://postgres:postgres@langgraph-postgres:5432/postgres?sslmode=disable
             JUPYTER_CLIENT_API: http://repl:9090
             TOOL_CLIENT_API: http://tool_server:9091
-        command: >
-            sh -c "
-              echo 'Running database migrations...' &&
-              alembic upgrade head &&
-              echo 'Starting Aegra server...' &&
-              uv run uvicorn src.agent_server.main:app --host 0.0.0.0 --port 8000
-            "
+        volumes:
+            - ./db/:/deps/graph/db/
     repl:
         working_dir: /
         restart: always
@@ -98,7 +93,7 @@ services:
             - "8502:80"
         depends_on:
             langgraph-api:
-                condition: service_started
+                condition: service_healthy
             repl:
                 condition: service_started
             tool_server:

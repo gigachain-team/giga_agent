@@ -13,6 +13,8 @@ import DemoToolBar from "./DemoToolBar.tsx";
 import { uiMessageReducer } from "@langchain/langgraph-sdk/react-ui";
 import { PROGRESS_AGENTS } from "../config.ts";
 import { SelectedAttachmentsProvider } from "../hooks/SelectedAttachmentsContext.tsx";
+// @ts-ignore
+import { UseStream } from "@langchain/langgraph-sdk/dist/react/stream";
 
 const ChatWrapper = styled.div`
   width: 100%;
@@ -49,9 +51,11 @@ const ChatContainer = styled.div`
 
 interface DemoChatProps {
   onContinue: () => void;
+  onThreadIdChange?: (threadId: string) => void;
+  onThreadReady?: (thread: UseStream<GraphState>) => void;
 }
 
-const DemoChat = ({ onContinue }: DemoChatProps) => {
+const DemoChat = ({ onContinue, onThreadIdChange, onThreadReady }: DemoChatProps) => {
   const navigate = useNavigate();
   const { demoIndex } = useParams<{ demoIndex: string }>();
   const { demoItems } = useDemoItems();
@@ -67,6 +71,9 @@ const DemoChat = ({ onContinue }: DemoChatProps) => {
     apiUrl: `${window.location.protocol}//${window.location.host}/graph`,
     assistantId: "chat",
     messagesKey: "messages",
+    onThreadId: (threadId: string) => {
+      onThreadIdChange?.(threadId);
+    },
     onFinish: (state) => {
       if (state.next.length === 0) {
         setIsFinished(true);
@@ -80,22 +87,10 @@ const DemoChat = ({ onContinue }: DemoChatProps) => {
       });
     },
   });
-  const agentProgress = useMemo(() => {
-    // @ts-ignore
-    const uis = (thread.values.ui ?? []).filter(
-      // @ts-ignore
-      (el) => el.name === "agent_execution",
-    );
-    if (uis.length) {
-      // @ts-ignore
-      const agent = PROGRESS_AGENTS[uis[0].props.agent];
-      if (agent) {
-        return agent[uis[0].props.node];
-      }
-      return null;
-    }
-    return null;
-  }, [thread.values]);
+  useEffect(() => {
+    onThreadReady?.(thread as unknown as UseStream<GraphState>);
+  }, [thread, onThreadReady]);
+
   const stableMessages = useStableMessages(thread);
   useEffect(() => {
     if (
@@ -124,7 +119,6 @@ const DemoChat = ({ onContinue }: DemoChatProps) => {
             messages={stableMessages ?? []}
             thread={thread}
             ref={listRef}
-            progressAgent={agentProgress}
           >
             {!firstSent && (
               <Message

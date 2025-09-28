@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import styled, { keyframes } from "styled-components";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { dracula } from "react-syntax-highlighter/dist/cjs/styles/prism";
@@ -8,7 +8,7 @@ import { ChevronRight } from "lucide-react";
 import OverlayPortal from "./OverlayPortal.tsx";
 import GraphImage from "./GraphImage.tsx";
 import HTMLPage from "./HTMLPage.tsx";
-import { TOOL_MAP } from "../config.ts";
+import { PROGRESS_AGENTS, TOOL_MAP } from "../config.ts";
 import AudioPlayer from "./AudioPlayer.tsx";
 // @ts-ignore
 import { UseStream } from "@langchain/langgraph-sdk/dist/react/stream";
@@ -122,16 +122,41 @@ interface ToolMessageProps {
 }
 
 interface ToolExecProps {
-  progressSubstring?: string;
   messages: Message[];
   thread?: UseStream<GraphState>;
 }
 
-export const ToolExecuting = ({
-  progressSubstring,
-  messages,
-  thread,
-}: ToolExecProps) => {
+interface AgentNode {
+  text: string;
+  image?: string;
+}
+
+export const ToolExecuting = ({ messages, thread }: ToolExecProps) => {
+  const agentProgress: AgentNode | null = useMemo(() => {
+    // @ts-ignore
+    const uis = (thread.values.ui ?? []).filter(
+      // @ts-ignore
+      (el) => el.name === "agent_execution",
+    );
+    if (uis.length) {
+      let image = uis.at(-1).props.image;
+      let text;
+      if (uis.at(-1).props.node_text) text = uis.at(-1).props.node_text;
+      // @ts-ignore
+      const agent = PROGRESS_AGENTS[uis.at(-1).props.agent];
+      if (agent) {
+        text = uis.at(-1).props.node;
+      }
+      if (text || image) {
+        return {
+          text,
+          image,
+        };
+      }
+      return null;
+    }
+    return null;
+  }, [thread.values.ui]);
   // @ts-ignore
   const name = messages[messages.length - 1]?.tool_calls?.length
     ? // @ts-ignore
@@ -144,11 +169,11 @@ export const ToolExecuting = ({
   const idxRef = useRef<number>(0);
 
   useEffect(() => {
-    if (!progressSubstring) return;
+    if (!agentProgress?.text) return;
     displayedRef.current = "";
     setDisplayed("");
     idxRef.current = 0;
-    const words = progressSubstring;
+    const words = agentProgress.text;
     let timer: NodeJS.Timeout;
 
     const step = () => {
@@ -171,7 +196,7 @@ export const ToolExecuting = ({
 
     return () => clearTimeout(timer);
     // @ts-ignore
-  }, [progressSubstring]);
+  }, [agentProgress]);
   if (
     thread?.interrupt ||
     !messages ||
@@ -186,10 +211,20 @@ export const ToolExecuting = ({
         <Header>
           <CollapsedText style={{ marginLeft: "16px" }}>
             Инструмент выполняется{toolName} <Spinner />
-            {progressSubstring && (
+            {displayed && (
               <>
                 <br />
                 <ToolProgress>{displayed}</ToolProgress>
+              </>
+            )}
+            {agentProgress?.image && (
+              <>
+                <br />
+                <img
+                  style={{ marginTop: "10px", borderRadius: "4px" }}
+                  src={`data:image/png;base64,${agentProgress.image}`}
+                  width={400}
+                />
               </>
             )}
           </CollapsedText>

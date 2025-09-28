@@ -5,6 +5,7 @@ from typing import TypedDict, Annotated, List
 from langchain_core.messages import AnyMessage
 from langgraph.graph import add_messages
 
+from giga_agent.agents.browser_use import browser_task
 from giga_agent.repl_tools.llm import summarize
 from giga_agent.repl_tools.sentiment import predict_sentiments, get_embeddings
 from giga_agent.tools.another import (
@@ -70,6 +71,7 @@ TOOLS_REQUIRED_ENVS = {
     get_workflow_runs.name: ["GITHUB_PERSONAL_ACCESS_TOKEN"],
     list_pull_requests.name: ["GITHUB_PERSONAL_ACCESS_TOKEN"],
     get_pull_request.name: ["GITHUB_PERSONAL_ACCESS_TOKEN"],
+    browser_task.name: [],
 }
 
 
@@ -116,6 +118,7 @@ AGENTS = [
     podcast_generate,
     create_meme,
     city_explore,
+    browser_task,
 ]
 
 TOOLS = filter_tools_by_env(

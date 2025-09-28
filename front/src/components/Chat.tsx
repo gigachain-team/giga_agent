@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo } from "react";
 import styled from "styled-components";
 import MessageList from "./MessageList";
 import InputArea from "./InputArea";
@@ -6,9 +6,11 @@ import { useStream } from "@langchain/langgraph-sdk/react";
 import { PROGRESS_AGENTS } from "../config.ts";
 import { useStableMessages } from "../hooks/useStableMessages";
 import { GraphState } from "../interfaces";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { uiMessageReducer } from "@langchain/langgraph-sdk/react-ui";
 import { SelectedAttachmentsProvider } from "../hooks/SelectedAttachmentsContext.tsx";
+// @ts-ignore
+import { UseStream } from "@langchain/langgraph-sdk/dist/react/stream";
 
 const ChatWrapper = styled.div`
   width: 100%;
@@ -43,15 +45,22 @@ const ChatContainer = styled.div`
   }
 `;
 
-const Chat: React.FC = () => {
+interface ChatProps {
+  onThreadIdChange?: (threadId: string) => void;
+  onThreadReady?: (thread: UseStream<GraphState>) => void;
+}
+
+const Chat: React.FC<ChatProps> = ({ onThreadIdChange, onThreadReady }) => {
   const navigate = useNavigate();
   const { threadId } = useParams<{ threadId?: string }>();
   const thread = useStream<GraphState>({
     apiUrl: `${window.location.protocol}//${window.location.host}/graph`,
     assistantId: "chat",
     messagesKey: "messages",
+    reconnectOnMount: true,
     threadId: threadId === undefined ? null : threadId,
     onThreadId: (threadId: string) => {
+      onThreadIdChange?.(threadId);
       navigate(`/threads/${threadId}`);
     },
     onCustomEvent: (event, options) => {
@@ -62,22 +71,16 @@ const Chat: React.FC = () => {
       });
     },
   });
-  const agentProgress = useMemo(() => {
-    // @ts-ignore
-    const uis = (thread.values.ui ?? []).filter(
-      // @ts-ignore
-      (el) => el.name === "agent_execution",
-    );
-    if (uis.length) {
-      // @ts-ignore
-      const agent = PROGRESS_AGENTS[uis.at(-1).props.agent];
-      if (agent) {
-        return agent[uis.at(-1).props.node];
-      }
-      return null;
+
+  useEffect(() => {
+    onThreadReady?.(thread as unknown as UseStream<GraphState>);
+  }, [thread, onThreadReady]);
+
+  useEffect(() => {
+    if (threadId) {
+      onThreadIdChange?.(threadId);
     }
-    return null;
-  }, [thread.values.ui]);
+  }, [threadId, onThreadIdChange]);
 
   const stableMessages = useStableMessages(thread);
 
@@ -85,11 +88,7 @@ const Chat: React.FC = () => {
     <SelectedAttachmentsProvider>
       <ChatWrapper>
         <ChatContainer>
-          <MessageList
-            messages={stableMessages ?? []}
-            thread={thread}
-            progressAgent={agentProgress}
-          />
+          <MessageList messages={stableMessages ?? []} thread={thread} />
           <InputArea thread={thread} />
         </ChatContainer>
       </ChatWrapper>

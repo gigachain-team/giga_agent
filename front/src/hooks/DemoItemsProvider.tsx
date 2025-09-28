@@ -26,10 +26,12 @@ export const DemoItemsProvider = ({ children }: DemoItemsProps) => {
   const [demoItems, setDemoItems] = useState<DemoItem[]>([]);
   const [demoItemsLoaded, setDemoItemsLoaded] = useState(false);
   const updateItems = () => {
-    axios.get("/graph/tasks/").then((resp) => {
-      setDemoItems(resp.data);
-      setDemoItemsLoaded(true);
-    });
+    // axios.get("/graph/tasks/").then((resp) => {
+    //   setDemoItems(resp.data);
+    //   setDemoItemsLoaded(true);
+    // });
+    setDemoItems([]);
+    setDemoItemsLoaded(true);
   };
 
   useEffect(() => {

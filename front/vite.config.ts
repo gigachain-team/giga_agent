@@ -9,8 +9,14 @@ export default defineConfig(({ mode }) => {
   const __dirname = path.dirname(__filename);
   const env = loadEnv(mode, path.resolve(__dirname, ".."), "");
 
-  const JUPYTER_UPLOAD_API = env.JUPYTER_UPLOAD_API || process.env.JUPYTER_UPLOAD_API || "http://127.0.0.1:9092/";
-  const LANGGRAPH_API_URL = env.LANGGRAPH_API_URL || process.env.LANGGRAPH_API_URL || "http://127.0.0.1:2024/";
+  const JUPYTER_UPLOAD_API =
+    env.JUPYTER_UPLOAD_API ||
+    process.env.JUPYTER_UPLOAD_API ||
+    "http://127.0.0.1:9092/";
+  const LANGGRAPH_API_URL =
+    env.LANGGRAPH_API_URL ||
+    process.env.LANGGRAPH_API_URL ||
+    "http://127.0.0.1:2024/";
 
   return {
     plugins: [

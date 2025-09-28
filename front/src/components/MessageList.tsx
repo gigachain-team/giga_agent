@@ -11,7 +11,7 @@ import { Message as Message_ } from "@langchain/langgraph-sdk";
 import ThinkingIndicator from "./ThinkingIndicator.tsx";
 // @ts-ignore
 import { UseStream } from "@langchain/langgraph-sdk/dist/react/stream";
-import { GraphState } from "@/interfaces.ts";
+import { GraphState } from "../interfaces.ts";
 import ChatError from "./ChatError.tsx";
 
 const MessageListContainer = styled.div`
@@ -30,11 +30,10 @@ interface MessageListProps {
   messages: Message_[];
   thread?: UseStream<GraphState>;
   children?: React.ReactNode;
-  progressAgent?: string;
 }
 
 const MessageList = forwardRef<any, MessageListProps>(
-  ({ messages, thread, children, progressAgent }, ref) => {
+  ({ messages, thread, children }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const atBottomRef = useRef<boolean>(true);
 
@@ -73,7 +72,10 @@ const MessageList = forwardRef<any, MessageListProps>(
               message={message}
               name={
                 // @ts-ignore
-                messages[idx - 1]?.tool_calls[0] ? messages[idx - 1]?.tool_calls[0].name : ""
+                messages[idx - 1]?.tool_calls[0]
+                  ? // @ts-ignore
+                    messages[idx - 1]?.tool_calls[0].name
+                  : ""
               }
             />
           ) : (
@@ -86,11 +88,7 @@ const MessageList = forwardRef<any, MessageListProps>(
           ),
         )}
         <ChatError thread={thread} />
-        <ToolExecuting
-          progressSubstring={progressAgent}
-          messages={messages}
-          thread={thread}
-        />
+        <ToolExecuting messages={messages} thread={thread} />
         <ThinkingIndicator messages={messages} thread={thread} />
       </MessageListContainer>
     );
