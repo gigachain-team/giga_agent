@@ -66,6 +66,7 @@ TOOLS_REQUIRED_ENVS = {
     get_workflow_runs.name: ["GITHUB_PERSONAL_ACCESS_TOKEN"],
     list_pull_requests.name: ["GITHUB_PERSONAL_ACCESS_TOKEN"],
     get_pull_request.name: ["GITHUB_PERSONAL_ACCESS_TOKEN"],
+    researcher_agent.name: ["TAVILY_API_KEY"]
 }
 
 

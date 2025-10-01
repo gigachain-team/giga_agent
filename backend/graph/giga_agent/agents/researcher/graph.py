@@ -6,30 +6,28 @@ from langchain_core.tools import tool
 from langgraph.graph.ui import push_ui_message
 from langgraph.prebuilt import InjectedState
 from langgraph_sdk import get_client
-from tavily import TavilyClient
+from langchain_tavily import TavilySearch
 
 from giga_agent.utils.llm import load_llm
 from giga_agent.utils.messages import filter_tool_calls
 
 llm = load_llm().with_config(tags=["nostream"])
 
-tavily_client = TavilyClient(api_key=os.environ["TAVILY_API_KEY"])
 
-
-def internet_search(
+async def internet_search(
     query: str,
     max_results: int = 5,
     topic: Literal["general", "news", "finance"] = "general",
     include_raw_content: bool = False,
 ):
     """Функция поиска в интернете"""
-    search_docs = tavily_client.search(
-        query,
-        max_results=max_results,
-        include_raw_content=include_raw_content,
-        topic=topic,
+    search = TavilySearch(include_raw_content=include_raw_content, max_results=max_results, topic=topic)
+    result = await search.ainvoke(
+        {
+            "query": query
+        }
     )
-    return search_docs
+    return result
 
 
 sub_research_prompt = """Вы — преданный своему делу исследователь. Ваша задача — проводить исследования, основанные на вопросах пользователей.
