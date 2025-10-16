@@ -36,7 +36,7 @@ async def plan_node(state: PresentationState, config: RunnableConfig):
 ```python
 class Slide:
     name: str = Field("Название слайда")
-    graphs: Optional[list[str]] = Field("ID графиков внутри слайда")
+    attachments: Optional[list[str]] = Field("Список вложений из предыдущей переписки (добавляй только если подходит к слайду)")
 ```
 Формат:
 {

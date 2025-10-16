@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
-import { DemoItem } from "../interfaces.ts";
-import { useFileUpload } from "../hooks/useFileUploads.ts";
+import { DemoItem } from "../../interfaces.ts";
+import { useFileUpload } from "../../hooks/useFileUploads.ts";
 import { Check, CopyX, Paperclip, Play, Save } from "lucide-react";
 import {
   AttachmentBubble,
@@ -11,10 +11,10 @@ import {
   ImagePreview,
   ProgressOverlay,
   RemoveButton,
-} from "./Attachments.tsx";
-import OverlayPortal from "./OverlayPortal.tsx";
+} from "../Attachments.tsx";
+import OverlayPortal from "../OverlayPortal.tsx";
 import { useNavigate } from "react-router-dom";
-import { useDemoItems } from "../hooks/DemoItemsProvider.tsx";
+import { useDemoItems } from "../../hooks/DemoItemsProvider.tsx";
 
 interface DemoItemEditorProps {
   item: DemoItem;
@@ -182,7 +182,9 @@ const DemoItemEditor: React.FC<DemoItemEditorProps> = ({ item, itemIdx }) => {
 
   useEffect(() => {
     setMessage(item.json_data.message ? item.json_data.message : "");
-    setExistingFiles(item.json_data.attachments ? item.json_data.attachments : []);
+    setExistingFiles(
+      item.json_data.attachments ? item.json_data.attachments : [],
+    );
     setSteps(item.steps);
     setActive(item.active);
   }, [item.json_data, item.steps, item.active, setExistingFiles]);
@@ -314,7 +316,8 @@ const DemoItemEditor: React.FC<DemoItemEditorProps> = ({ item, itemIdx }) => {
                 onClick={() => {
                   if (it.kind === "existing") {
                     const f = it.data!;
-                    if (f.file_id) setEnlargedImage("/files/" + f.path);
+                    if (f.file_type === "image")
+                      setEnlargedImage("/files/" + f.path);
                     else openLink("/files/" + f.path);
                   } else if (it.previewUrl) {
                     setEnlargedImage(it.previewUrl);
@@ -322,10 +325,12 @@ const DemoItemEditor: React.FC<DemoItemEditorProps> = ({ item, itemIdx }) => {
                 }}
               >
                 {it.kind === "existing" ? (
-                  it.data?.file_id ? (
+                  it.data?.file_type === "image" ? (
                     <ImagePreview src={"/files/" + it.data.path} />
                   ) : (
-                    <span>{it.name ?? it.data?.path.replace(/^files\//, "")}</span>
+                    <span>
+                      {it.name ?? it.data?.path.replace(/^files\//, "")}
+                    </span>
                   )
                 ) : it.previewUrl ? (
                   <ImagePreview src={it.previewUrl} />

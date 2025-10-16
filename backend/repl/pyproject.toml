@@ -86,6 +86,7 @@ dependencies = [
     "kaleido==0.2.0",
     "kiwisolver==1.4.5",
     "langchain-gigachat>=0.3.0",
+    "langgraph-sdk>=0.2.9",
     "lxml==5.3.0",
     "markdown-it-py==3.0.0",
     "markupsafe==2.1.5",

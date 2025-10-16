@@ -10,6 +10,7 @@ from langgraph.graph.ui import push_ui_message
 from langgraph_sdk import get_client
 from typing_extensions import TypedDict, Annotated
 
+from giga_agent.utils.jupyter import REPLUploader, RunUploadFile
 from giga_agent.utils.lang import LANG
 from giga_agent.utils.llm import load_llm
 
@@ -521,11 +522,20 @@ async def lean_canvas(
                     "node": list(chunk.data.keys())[0],
                 },
             )
-    file_id = str(uuid.uuid4())
     html = lean_canvas_to_html(state)
     text = lean_canvas_to_text(state)
+    uploader = REPLUploader()
+    upload_files = [
+        RunUploadFile(
+            path=f"lean_canvas.html",
+            file_type="html",
+            content=html,
+        )
+    ]
+    upload_resp = await uploader.upload_run_files(upload_files, thread_id)
+    uploaded = upload_resp[0]
     return {
         "text": text,
-        "message": f'В результате выполнения была сгенерирована HTML страница {file_id}. Покажи её пользователю через "![HTML-страница](html:{file_id})" и напиши ответ с использованием текста lean canvas и куда двигаться пользователю дальше',
-        "giga_attachments": [{"type": "text/html", "file_id": file_id, "data": html}],
+        "message": f'В результате выполнения была сгенерирована HTML страница {uploaded["path"]}. Покажи её пользователю через "![alt-описание](attachment:{uploaded["path"]})" и напиши ответ с использованием текста lean canvas и куда двигаться пользователю дальше',
+        "giga_attachments": [uploaded],
     }

@@ -1,6 +1,5 @@
 import os
-from operator import add
-from typing import TypedDict, Annotated, List
+from typing import TypedDict, Annotated
 
 from langchain_core.messages import AnyMessage
 from langgraph.graph import add_messages
@@ -39,7 +38,6 @@ load_project_env()
 
 class AgentState(TypedDict):  # noqa: D101
     messages: Annotated[list[AnyMessage], add_messages]
-    file_ids: Annotated[List[str], add]
     kernel_id: str
     tool_call_index: int
     tools: list

@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
 import styled from "styled-components";
-import { StoreClient } from "@langchain/langgraph-sdk/client";
 
 // Обертка iframe: управляет шириной и макс. шириной
 const IframeWrapper = styled.div<{ fullScreen: boolean }>`
@@ -28,11 +27,16 @@ const StyledIframe = styled.iframe<{ scale: number }>`
 
 interface HTMLPageProps {
   id: string;
+  data: any;
   alt?: string;
   fullScreen?: boolean;
 }
 
-const HTMLPage: React.FC<HTMLPageProps> = ({ id, alt, fullScreen = false }) => {
+const HTMLPage: React.FC<HTMLPageProps> = ({
+  data,
+  alt,
+  fullScreen = false,
+}) => {
   const [scale, setScale] = useState<number>(fullScreen ? 0.8 : 0.5);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
@@ -63,20 +67,13 @@ const HTMLPage: React.FC<HTMLPageProps> = ({ id, alt, fullScreen = false }) => {
   return (
     <IframeWrapper ref={wrapperRef} fullScreen={fullScreen}>
       <StyledIframe
-        title={alt || `iframe-${id}`}
-        src={`/graph/html/${id}/`}
+        title={alt || `iframe-${data.path}`}
+        src={`${window.location.protocol}//${window.location.host}/files${data.path}`}
         sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-modals allow-forms"
         scale={scale}
-
       />
     </IframeWrapper>
   );
 };
 
-export default React.memo(
-  HTMLPage,
-  (prev, next) =>
-    prev.id === next.id &&
-    prev.alt === next.alt &&
-    prev.fullScreen === next.fullScreen,
-);
+export default HTMLPage;

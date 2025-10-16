@@ -6,7 +6,10 @@ export interface GraphState extends Record<string, unknown> {
 
 export interface FileData {
   path: string;
-  file_id?: string;
+  file_type?: string;
+  size: number;
+  image_id?: string;
+  image_path?: string;
 }
 
 export interface MessageData {

@@ -1,16 +1,11 @@
-import asyncio
 import json
 import uuid
-from base64 import b64decode, b64encode
 
-import plotly
 from pydantic import BaseModel, Field
 
-from giga_agent.utils.llm import is_llm_image_inline, load_llm
-from giga_agent.utils.jupyter import JupyterClient
+from giga_agent.utils.jupyter import JupyterClient, RunUploadFile, REPLUploader
 from langchain_core.tools import BaseTool
 import re
-import os
 
 
 class CodeInput(BaseModel):
@@ -28,14 +23,14 @@ class ExecuteTool(BaseTool):
         "Если произошла ошибка напиши исправленный код "
     )
     kernel_id: str
+    thread_id: str
 
     def _run(self, code: str):
         return {}
 
     async def _arun(self, code: str):
-        client = JupyterClient(
-            base_url=os.getenv("JUPYTER_CLIENT_API", "http://127.0.0.1:9090")
-        )
+        client = JupyterClient()
+        uploader = REPLUploader()
 
         if INPUT_REGEX.search(code):
             return {
@@ -52,42 +47,43 @@ class ExecuteTool(BaseTool):
         results = []
         if result is not None:
             results.append(result.strip())
-        file_ids = []
-        have_images = False
-        attachments = []
+        upload_files = []
+        upload_resp = []
         for attachment in response["attachments"]:
-            img = None
-            attachment_info = ""
-            attachment_data = {}
             if "application/vnd.plotly.v1+json" in attachment:
-                attachment_info = "В результате выполнения был сгенерирован график."
-                results.append(
-                    "В результате выполнения был сгенерирован график. "  # Он показан пользователю.
+                upload_files.append(
+                    RunUploadFile(
+                        path=f"repl/{uuid.uuid4()}.json",
+                        file_type="plotly_graph",
+                        content=json.dumps(
+                            attachment["application/vnd.plotly.v1+json"]
+                        ),
+                    )
                 )
-                data = json.dumps(attachment["application/vnd.plotly.v1+json"])
-                plot = plotly.io.from_json(data)
-                img = await asyncio.to_thread(plotly.io.to_image, plot, format="png")
-                attachment_data["type"] = "application/vnd.plotly.v1+json"
-                attachment_data["data"] = attachment["application/vnd.plotly.v1+json"]
             elif "image/png" in attachment:
-                attachment_info = "В результате выполнения было сгенерировано изображение. "  # . Оно показано пользователю.
-                img = b64decode(attachment["image/png"])
-                attachment_data["type"] = "image/png"
-                attachment_data["data"] = attachment["image/png"]
-            if img is not None:
-                have_images = True
-                if is_llm_image_inline():
-                    llm = load_llm()
-                    uploaded_file_id = (await llm.aupload_file(("image.png", img))).id_
-                else:
-                    uploaded_file_id = str(uuid.uuid4())
-                attachment_data["img_data"] = b64encode(img)
-                attachment_data["file_id"] = uploaded_file_id
-                attachment_info += f"ID изображения '{uploaded_file_id}'. Ты можешь показать это пользователю с помощью через \"![График](graph:{uploaded_file_id})\" "
+                upload_files.append(
+                    RunUploadFile(
+                        path=f"repl/{uuid.uuid4()}.png",
+                        file_type="image",
+                        content=attachment["image/png"],
+                    )
+                )
+        if upload_files:
+            upload_resp = await uploader.upload_run_files(upload_files, self.thread_id)
+            for file in upload_resp:
+                attachment_info = ""
+                if file["file_type"] == "plotly_graph":
+                    attachment_info = (
+                        "В результате выполнения был сгенерирован график. "
+                    )
+                elif file["file_type"] == "image":
+                    attachment_info = (
+                        "В результате выполнения было сгенерировано изображение. "
+                    )
+                attachment_info += f"Путь до него '{file['path']}'. Ты можешь показать это пользователю с помощью через \"![alt-текст](attachment:{file['path']})\" "
                 results.append(attachment_info)
-                attachments.append(attachment_data)
         result = "\n".join(results)
-        if have_images:
+        if upload_files:
             result += "\nНе забывай, что у тебя есть анализ изображений. С помощью анализа ты можешь сравнить то, что ты ожидал получить в графике с тем что получилось на деле!\nТакже не забывай, что ты ОБЯЗАН вывести изображения/графики пользователю при формировании финального ответа!"
         if response["is_exception"]:
             # Убираем лишние строки кода из ошибки, для улучшения качества исправления
@@ -109,6 +105,6 @@ class ExecuteTool(BaseTool):
         #     message = "Результат выполнения вышел слишком длинным. Выводи меньше информации. Допустим не пиши значения"
         return {
             "message": message,
-            "giga_attachments": attachments,
+            "giga_attachments": upload_resp,
             "is_exception": response["is_exception"],
         }

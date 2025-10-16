@@ -17,6 +17,7 @@ from langgraph.graph import StateGraph
 from langgraph.prebuilt.tool_node import _handle_tool_error, ToolNode
 from langgraph.store.base import BaseStore
 from langgraph.types import interrupt
+from langgraph.config import RunnableConfig
 
 from giga_agent.config import (
     AgentState,
@@ -30,9 +31,8 @@ from giga_agent.prompts.main_prompt import SYSTEM_PROMPT
 from giga_agent.repl_tools.utils import describe_repl_tool
 from giga_agent.tool_server.tool_client import ToolClient
 from giga_agent.utils.env import load_project_env
-from giga_agent.utils.jupyter import JupyterClient
+from giga_agent.utils.jupyter import JupyterClient, prepend_code
 from giga_agent.utils.lang import LANG
-from giga_agent.utils.python import prepend_code
 
 load_project_env()
 
@@ -80,18 +80,13 @@ def get_code_arg(message):
         return "\n".join(matches).strip()
 
 
-client = JupyterClient(
-    base_url=os.getenv("JUPYTER_CLIENT_API", "http://127.0.0.1:9090")
-)
+client = JupyterClient()
 
 
 async def agent(state: AgentState):
-    tool_client = ToolClient(
-        base_url=os.getenv("TOOL_CLIENT_API", "http://127.0.0.1:8811")
-    )
+    tool_client = ToolClient()
     kernel_id = state.get("kernel_id")
     tools = state.get("tools")
-    file_ids = []
     if not kernel_id:
         kernel_id = (await client.start_kernel())["id"]
         await client.execute(kernel_id, "function_results = []")
@@ -103,14 +98,11 @@ async def agent(state: AgentState):
         files = state["messages"][-1].additional_kwargs.get("files", [])
         file_prompt = []
         for idx, file in enumerate(files):
-            file_prompt.append(
-                f"""Файл ![](graph:{idx})\nЗагружен по пути: '{file['path']}'"""
-            )
-            if "file_id" in file:
+            file_prompt.append(f"""Файл загружен по пути: '{file['path']}'""")
+            if "image_path" in file:
                 file_prompt[
                     -1
-                ] += f"\nФайл является изображением его id: '{file['file_id']}'"
-                file_ids.append(file["file_id"])
+                ] += f"\nФайл является изображением его можно отобразить с помощью: '![алт-текст](attachment:{file['image_path']})'."
         file_prompt = (
             "<files_data>" + "\n----\n".join(file_prompt) + "</files_data>"
             if len(file_prompt)
@@ -119,7 +111,7 @@ async def agent(state: AgentState):
         selected = state["messages"][-1].additional_kwargs.get("selected", {})
         selected_items = []
         for key, value in selected.items():
-            selected_items.append(f"""![{value}](graph:{key})""")
+            selected_items.append(f"""![{value}](attachment:{key})""")
         selected_prompt = ""
         if selected_items:
             selected_items = "\n".join(selected_items)
@@ -136,17 +128,11 @@ async def agent(state: AgentState):
         "messages": [state["messages"][-1], message],
         "kernel_id": kernel_id,
         "tools": tools,
-        "file_ids": file_ids,
     }
 
 
-async def tool_call(
-    state: AgentState,
-    store: BaseStore,
-):
-    tool_client = ToolClient(
-        base_url=os.getenv("TOOL_CLIENT_API", "http://127.0.0.1:8811")
-    )
+async def tool_call(state: AgentState, store: BaseStore, config: RunnableConfig):
+    tool_client = ToolClient()
     action = copy.deepcopy(state["messages"][-1].tool_calls[0])
     value = interrupt({"type": "approve"})
     if value.get("type") == "comment":
@@ -180,12 +166,18 @@ async def tool_call(
                     ),
                 )
             }
-        action["args"]["code"] = prepend_code(action["args"]["code"], state)
-    file_ids = []
+        action["args"]["code"] = prepend_code(
+            action["args"]["code"],
+            state,
+            config["metadata"]["thread_id"],
+            config["metadata"]["checkpoint_id"],
+        )
     try:
         state_ = copy.deepcopy(state)
         state_.pop("messages")
-        tool_client.set_state(state_)
+        tool_client.set_state_data(
+            config["metadata"]["thread_id"], config["metadata"]["checkpoint_id"]
+        )
         if action.get("name") not in AGENT_MAP:
             result = await tool_client.aexecute(action.get("name"), action.get("args"))
         else:
@@ -226,37 +218,7 @@ async def tool_call(
         tool_attachments = []
         if "giga_attachments" in result:
             add_data = result
-            attachments = result.pop("giga_attachments")
-            file_ids = [attachment["file_id"] for attachment in attachments]
-            for attachment in attachments:
-                if attachment["type"] == "text/html":
-                    await store.aput(
-                        ("html",),
-                        attachment["file_id"],
-                        attachment,
-                        ttl=None,
-                    )
-                elif attachment["type"] == "audio/mp3":
-                    await store.aput(
-                        ("audio",),
-                        attachment["file_id"],
-                        attachment,
-                        ttl=None,
-                    )
-                else:
-                    await store.aput(
-                        ("attachments",),
-                        attachment["file_id"],
-                        attachment,
-                        ttl=None,
-                    )
-
-                tool_attachments.append(
-                    {
-                        "type": attachment["type"],
-                        "file_id": attachment["file_id"],
-                    }
-                )
+            tool_attachments = result.pop("giga_attachments")
         message = ToolMessage(
             tool_call_id=action.get("id", str(uuid4())),
             content=json.dumps(add_data, ensure_ascii=False),
@@ -272,7 +234,6 @@ async def tool_call(
     return {
         "messages": [message],
         "tool_call_index": tool_call_index,
-        "file_ids": file_ids,
     }
 
 

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import styled, { keyframes } from "styled-components";
 import { Pause, Play } from "lucide-react";
-import { TIME_TO_NEXT_TASK } from "../config.ts";
+import { TIME_TO_NEXT_TASK } from "../../config.ts";
 
 const draw = keyframes`
   from {

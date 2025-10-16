@@ -152,37 +152,42 @@
     // Replace placeholders for graphs/images
     jQuery('.graph').each((index, el) => {
         const src = el.getAttribute('src') ? el.getAttribute('src') : el.getAttribute('data-src');
-        if (src.startsWith("graph:")) {
-            const graphId = src.replace(/^graph:/, "");
+        if (src.startsWith("attachment:") || src.startsWith("graph:")) {
+            let graphId = src.replace(/^attachment:/, "");
+             graphId = graphId.replace(/^graph:/, "");
             const uuid = crypto.randomUUID();
             fetch(`/graph/store/items?namespace=attachments&key=${graphId}`).then((res) => {
                 res.json().then((json) => {
-                    if (json.value.type === "image/png") {
+                    if (json.value.file_type === "image") {
                         const d = document.createElement('img');
                         d.attributes = el.attributes;
                         const attributes = $(el).prop("attributes");
                         $.each(attributes, function () {
                             $(d).attr(this.name, this.value);
                         });
-                        d.src = `data:image/png;base64, ${json.value.data}`
+                        d.src = `/files/${json.value.path}`;
                         d.setAttribute('id', uuid);
                         d.removeAttribute("data-src");
                         el.parentNode.replaceChild(d, el);
-                    } else if (json.value.type === "application/vnd.plotly.v1+json") {
-                        const d = document.createElement('div');
-                        d.innerHTML = el.innerHTML;
-                        d.attributes = el.attributes;
-                        const attributes = $(el).prop("attributes");
+                    } else if (json.value.file_type === "plotly_graph") {
+                        fetch(`/files/${json.value.path}`).then((res) => {
+                            res.json().then((data) => {
+                                const d = document.createElement('div');
+                                d.innerHTML = el.innerHTML;
+                                d.attributes = el.attributes;
+                                const attributes = $(el).prop("attributes");
 
-                        $.each(attributes, function () {
-                            $(d).attr(this.name, this.value);
+                                $.each(attributes, function () {
+                                    $(d).attr(this.name, this.value);
+                                });
+
+                                el.parentNode.replaceChild(d, el);
+                                el = d;
+                                el.setAttribute('id', uuid);
+                                Plotly.newPlot(uuid, data.data, data.layout, data.config);
+                            })
                         });
 
-                        el.parentNode.replaceChild(d, el);
-                        el = d;
-                        el.setAttribute('id', uuid);
-                        const data = json.value.data;
-                        Plotly.newPlot(uuid, data.data, data.layout, data.config);
 
                     }
                 });

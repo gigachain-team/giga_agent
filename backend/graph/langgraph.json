@@ -11,9 +11,6 @@
     "podcast": "./giga_agent/agents/podcast/graph.py:graph"
   },
   "env": ".env",
-  "http": {
-    "app": "./giga_agent/tasks_app.py:app"
-  },
   "dockerfile_lines": [
     "RUN apt-get update && apt-get install -y ffmpeg libavcodec-extra"
   ]

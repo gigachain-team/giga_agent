@@ -40,11 +40,19 @@ const ChatError = ({ thread }: ChatErrorProps) => {
   if (!thread?.error || thread.isLoading) {
     return null;
   }
+
   return (
     <Wrapper>
       <Inner>
         В чате произошла ошибка{" "}
-        <RefreshButton onClick={() => thread?.submit()}>
+        <RefreshButton
+          onClick={() =>
+            thread?.submit(
+              { messages: thread?.messages.at(-1) },
+              { checkpoint: thread?.history.at(-1).parent_checkpoint },
+            )
+          }
+        >
           <RefreshCw color={"white"} size={16} />
         </RefreshButton>
       </Inner>

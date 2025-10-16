@@ -14,7 +14,6 @@ from langgraph_sdk import get_client
 from giga_agent.agents.meme_agent.config import MemeState, ConfigSchema
 from giga_agent.agents.meme_agent.nodes.images import image_node
 from giga_agent.agents.meme_agent.nodes.text import text_node
-from giga_agent.utils.llm import is_llm_image_inline
 from giga_agent.utils.env import load_project_env
 from giga_agent.utils.messages import filter_tool_calls
 
@@ -81,22 +80,10 @@ async def create_meme(
                     "node": list(chunk.data.keys())[0],
                 },
             )
-    if is_llm_image_inline():
-        uploaded_file_id = (
-            await llm.aupload_file(("image.png", base64.b64decode(state["meme_image"])))
-        ).id_
-    else:
-        uploaded_file_id = str(uuid.uuid4())
     return {
         "meme_text": state["meme_idea"],
-        "message": f'В результате выполнения было сгенерировано изображение {uploaded_file_id}. Покажи его пользователю через "![мем](graph:{uploaded_file_id})" и напиши куда двигаться пользователю дальше',
-        "giga_attachments": [
-            {
-                "type": "image/png",
-                "file_id": uploaded_file_id,
-                "data": state["meme_image"],
-            }
-        ],
+        "message": f'В результате выполнения было сгенерировано изображение {state["meme_image"]["path"]}. Покажи его пользователю через "![alt-описание](attachment:{state["meme_image"]["path"]})" и напиши куда двигаться пользователю дальше',
+        "giga_attachments": [state["meme_image"]],
     }
 
 

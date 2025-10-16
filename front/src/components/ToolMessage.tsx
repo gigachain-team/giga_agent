@@ -6,13 +6,11 @@ import { Message } from "@langchain/langgraph-sdk";
 import Spinner from "./Spinner.tsx";
 import { ChevronRight } from "lucide-react";
 import OverlayPortal from "./OverlayPortal.tsx";
-import GraphImage from "./GraphImage.tsx";
-import HTMLPage from "./HTMLPage.tsx";
 import { PROGRESS_AGENTS, TOOL_MAP } from "../config.ts";
-import AudioPlayer from "./AudioPlayer.tsx";
 // @ts-ignore
 import { UseStream } from "@langchain/langgraph-sdk/dist/react/stream";
 import { GraphState } from "../interfaces.ts";
+import MessageAttachment from "./attachments/MessageAttachment.tsx";
 
 const ToolMessageContainer = styled.div`
   display: flex;
@@ -235,11 +233,12 @@ export const ToolExecuting = ({ messages, thread }: ToolExecProps) => {
 };
 
 const ATTACHMENT_TEXTS = {
-  "application/vnd.plotly.v1+json":
-    "В результате работы был сгенерирован график ",
-  "image/png": "В результате работы было сгенерировано изображение ",
-  "text/html": "В результате работы была сгенерирована HTML-страница",
-  "audio/mp3": "В результате работы было сгенерировано аудио",
+  plotly_graph: "В результате работы был сгенерирован график ",
+  image: "В результате работы было сгенерировано изображение ",
+  html: "В результате работы была сгенерирована HTML-страница",
+  audio: "В результате работы было сгенерировано аудио",
+  text: "В результате работы был сгенерирован текстовый файл ",
+  other: "В результате работы было сгенерировано вложение ",
 };
 
 const ToolMessage: React.FC<ToolMessageProps> = ({ message, name }) => {
@@ -251,7 +250,7 @@ const ToolMessage: React.FC<ToolMessageProps> = ({ message, name }) => {
   }
 
   const attachments: any = message.additional_kwargs?.tool_attachments || [];
-  let content = null;
+  let content;
   try {
     content = JSON.stringify(JSON.parse(message.content as string), null, 2);
   } catch (e) {
@@ -299,15 +298,15 @@ const ToolMessage: React.FC<ToolMessageProps> = ({ message, name }) => {
           {attachments.map((att: any) => {
             return (
               <AttachmentLink
-                key={att["file_id"]}
+                key={att["path"]}
                 href=""
                 onClick={(ev) => handleLinkClick(ev, att)}
               >
                 {
                   // @ts-ignore
-                  ATTACHMENT_TEXTS[att["type"] ?? "image/png"]
+                  ATTACHMENT_TEXTS[att["file_type"] ?? "image/png"]
                 }{" "}
-                {att["file_id"]}
+                {att["path"].split("/").at(-1)}
               </AttachmentLink>
             );
           })}
@@ -316,19 +315,7 @@ const ToolMessage: React.FC<ToolMessageProps> = ({ message, name }) => {
       <OverlayPortal isVisible={!!file} onClose={() => setFile(null)}>
         <OverlayBox>
           {file ? (
-            <>
-              {file["type"] === "text/html" ? (
-                <HTMLPage id={file["file_id"]} fullScreen={true} />
-              ) : (
-                <>
-                  {file["type"] === "audio/mp3" ? (
-                    <AudioPlayer id={file["file_id"]} />
-                  ) : (
-                    <GraphImage id={file["file_id"]} />
-                  )}
-                </>
-              )}
-            </>
+            <MessageAttachment path={file["path"]} alt={""} fullScreen={true} />
           ) : (
             <></>
           )}

@@ -11,6 +11,7 @@ from langchain_core.runnables import (
 from giga_agent.agents.presentation_agent.config import PresentationState, llm
 from giga_agent.agents.presentation_agent.prompts.ru import IMAGE_PROMPT
 from giga_agent.generators.image import load_image_gen
+from giga_agent.utils.jupyter import REPLUploader, RunUploadFile
 
 
 async def image_node(state: PresentationState, config: RunnableConfig):
@@ -19,12 +20,12 @@ async def image_node(state: PresentationState, config: RunnableConfig):
         "^[0-9a-f]{8}-[0-9a-f]{4}-[0-5][0-9a-f]{3}-[089ab][0-9a-f]{3}-[0-9a-f]{12}$"
     )
     for idx, slide in enumerate(state["slides"]):
-        if not slide.get("graphs"):
+        if not slide.get("attachments"):
             slides_for_images.append(f"{idx + 1}. {slide.get('name')}")
         else:
             graph_not_valid = True
-            for graph in slide["graphs"]:
-                if graph.startswith("graph:") and graph_not_valid:
+            for graph in slide["attachments"]:
+                if graph.startswith("attachment:") and graph_not_valid:
                     graph_not_valid = False
                     break
                 elif re.match(uuid_pattern, graph):
@@ -61,14 +62,30 @@ async def image_node(state: PresentationState, config: RunnableConfig):
         for i in images
     ]
     images_data = await asyncio.gather(*tasks, return_exceptions=True)
+    images_data_filtered = [
+        (i, d) for i, d in zip(images, images_data) if isinstance(d, str)
+    ]
+    uploader = REPLUploader()
+    upload_files = [
+        RunUploadFile(
+            path=i[0]["name"],
+            file_type="image",
+            content=base64.b64decode(i[1]),
+        )
+        for i in images_data_filtered
+    ]
+    upload_resp = await uploader.upload_run_files(
+        upload_files, config["configurable"]["thread_id"]
+    )
     slide_map = {}
-    images_base_64 = state.get("images_base_64", {})
-    for i, b in zip(images, images_data):
+    images_uploaded = state.get("images_uploaded", {})
+    for i, b in zip(images_data_filtered, upload_resp):
         if isinstance(b, Exception):
             continue
-        slide_map.setdefault(i["slide_index"], []).append(i)
-        images_base_64[i["name"]] = b
+        slide_map.setdefault(i[0]["slide_index"], []).append(i[0])
+        images_uploaded[i[0]["name"]] = b
         if config["configurable"].get("save_files", False):
-            with open(i["name"], "wb") as f:
-                await asyncio.to_thread(f.write, base64.b64decode(b))
-    return {"slide_map": slide_map, "images_base_64": images_base_64}
+            raise Exception("TODO: переделать")
+            # with open(i["name"], "wb") as f:
+            #     await asyncio.to_thread(f.write, base64.b64decode(b))
+    return {"slide_map": slide_map, "images_uploaded": images_uploaded}

@@ -1,9 +1,7 @@
 import asyncio
-import base64
 import json
 import os
 import uuid
-from pathlib import Path
 from typing import Literal, Optional, Annotated
 
 from langchain_core.messages import HumanMessage, ToolMessage
@@ -66,12 +64,13 @@ async def done_node(state: LandingState, config: RunnableConfig):
         action = {}
 
     if config["configurable"].get("save_files", False):
-        await asyncio.to_thread(Path("html").mkdir, parents=True, exist_ok=True)
-        await asyncio.to_thread(write_to_file, "html/index.html", "w", state["html"])
-        for name, value in state["images_base_64"].items():
-            await asyncio.to_thread(
-                write_to_file, f"html/{name}", "wb", base64.b64decode(value)
-            )
+        raise Exception("TODO: переделать")
+        # await asyncio.to_thread(Path("html").mkdir, parents=True, exist_ok=True)
+        # await asyncio.to_thread(write_to_file, "html/index.html", "w", state["html"])
+        # for name, value in state["images_base_64"].items():
+        #     await asyncio.to_thread(
+        #         write_to_file, f"html/{name}", "wb", base64.b64decode(value)
+        #     )
     return {
         "agent_messages": ToolMessage(
             tool_call_id=action.get("id", str(uuid.uuid4())),
@@ -134,7 +133,8 @@ async def create_landing(
     """
     client = get_client(url=os.getenv("LANGGRAPH_API_URL", "http://0.0.0.0:2024"))
     if not thread_id:
-        thread_id = str(uuid.uuid4())
+        thread = await client.threads.create()
+        thread_id = thread["thread_id"]
     result_state = {}
     action = state["messages"][-1].tool_calls[0]
     async for chunk in client.runs.stream(
@@ -151,7 +151,6 @@ async def create_landing(
             ],
             "task": task
             + f"\nДополнительная информация: {state['messages'][-1].content}",
-            "html": "",
             "plan_messages": state["messages"][:]
             + [
                 ToolMessage(
@@ -180,14 +179,11 @@ async def create_landing(
                                 "node": message["tool_calls"][0]["name"],
                             },
                         )
-    code = result_state["html"]
-    for name, value in result_state.get("images_base_64", {}).items():
-        code = code.replace(name, f"data:image/jpeg;base64, {value}")
-    file_id = str(uuid.uuid4())
+    html_page = result_state["html"]
     return {
         "text": result_state.get("done", "Страница готова"),
-        "message": f'В результате выполнения была сгенерирована HTML страница {file_id}. Покажи её пользователю через "![HTML-страница](html:{file_id})" и напиши ответ с использованием информации из `text` и куда двигаться пользователю дальше\nТекущий thread_id: "{thread_id}" используй его, если пользователю нужно будет продолжить работу над страницей. Ни в коем случае не пиши thread_id пользователю — он нужен только для параметра thread_id!',
-        "giga_attachments": [{"type": "text/html", "file_id": file_id, "data": code}],
+        "message": f'В результате выполнения была сгенерирована HTML страница {html_page["path"]}. Покажи её пользователю через "![alt-описание](attachment:{html_page["path"]})" и напиши ответ с использованием информации из `text` и куда двигаться пользователю дальше\nТекущий thread_id: "{thread_id}" используй его, если пользователю нужно будет продолжить работу над страницей. Ни в коем случае не пиши thread_id пользователю — он нужен только для параметра thread_id!',
+        "giga_attachments": [html_page],
         "thread_id": thread_id,
     }
 

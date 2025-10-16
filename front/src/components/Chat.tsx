@@ -3,10 +3,9 @@ import styled from "styled-components";
 import MessageList from "./MessageList";
 import InputArea from "./InputArea";
 import { useStream } from "@langchain/langgraph-sdk/react";
-import { PROGRESS_AGENTS } from "../config.ts";
 import { useStableMessages } from "../hooks/useStableMessages";
 import { GraphState } from "../interfaces";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { uiMessageReducer } from "@langchain/langgraph-sdk/react-ui";
 import { SelectedAttachmentsProvider } from "../hooks/SelectedAttachmentsContext.tsx";
 // @ts-ignore
