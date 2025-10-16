@@ -4,9 +4,9 @@ import Chat from "./components/Chat";
 import { SettingsProvider } from "./components/Settings.tsx";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import Sidebar from "./components/Sidebar.tsx";
-import DemoSettings from "./components/DemoSettings.tsx";
+import DemoSettings from "./components/demo/DemoSettings.tsx";
 import { DemoItemsProvider, useDemoItems } from "./hooks/DemoItemsProvider.tsx";
-import DemoChat from "./components/DemoChat.tsx";
+import DemoChat from "./components/demo/DemoChat.tsx";
 // @ts-ignore
 import { UseStream } from "@langchain/langgraph-sdk/dist/react/stream";
 import { GraphState } from "./interfaces.ts";

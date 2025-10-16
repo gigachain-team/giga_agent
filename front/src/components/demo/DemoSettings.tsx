@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import styled from "styled-components";
 import DemoItemEditor from "./DemoItemEditor.tsx";
-import { useDemoItems } from "../hooks/DemoItemsProvider.tsx";
+import { useDemoItems } from "../../hooks/DemoItemsProvider.tsx";
 import { Plus } from "lucide-react";
 
 const DemoWrapper = styled.div`

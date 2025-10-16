@@ -29,6 +29,8 @@ services:
         depends_on:
             aegra-postgres:
                 condition: service_healthy
+        image: giga_agent_aegra
+        pull_policy: never
         env_file:
             - .docker.env
         environment:
@@ -36,11 +38,12 @@ services:
             DATABASE_URL: postgresql+asyncpg://postgres:postgres@aegra-postgres:5432/postgres
             AUTH_TYPE: noop
             JUPYTER_CLIENT_API: http://repl:9090
+            JUPYTER_UPLOAD_API: http://upload_server:9092
             TOOL_CLIENT_API: http://tool_server:9091
         command: >
             sh -c "
               echo 'Running database migrations...' &&
-              alembic upgrade head &&
+              uv run alembic upgrade head &&
               echo 'Starting Aegra server...' &&
               uv run uvicorn src.agent_server.main:app --host 0.0.0.0 --port 8000
             "
@@ -61,6 +64,8 @@ services:
         volumes:
             - ./kernel_states/:/kernel_states/
             - ./files/:/files/:ro
+            - ./data/jupyter:/home/jupyter/:rw
+            - ./data/runs:/runs/:rw
     upload_server:
         working_dir: /
         restart: always
@@ -77,12 +82,15 @@ services:
             MAX_KERNEL_LIVE: 300
             FILES_DIR: /files
             STATE_DIR: /kernel_states
+            GIGA_AGENT_API: http://giga_agent_server:8822
         volumes:
             - ./files/:/files/:rw
+            - ./data/runs:/runs/:rw
     tool_server:
         working_dir: /app
         restart: always
-        image: giga_agent
+        image: giga_agent_aegra
+        pull_policy: never
         command: uvicorn giga_agent.tool_server.tool_server:app --host 0.0.0.0 --port 9091
         env_file:
             - .docker.env
@@ -90,10 +98,27 @@ services:
         environment:
             JUPYTER_CLIENT_API: http://repl:9090
             TOOL_CLIENT_API: http://tool_server:9091
+            JUPYTER_UPLOAD_API: http://upload_server:9092
+    giga_agent_server:
+        working_dir: /app
+        restart: always
+        image: giga_agent_aegra
+        pull_policy: never
+        command: uv run uvicorn giga_agent.tasks_app:app --host 0.0.0.0 --port 8822
+        env_file:
+            - .docker.env
+        entrypoint: [ ]
+        environment:
+            JUPYTER_CLIENT_API: http://repl:9090
+            LANGGRAPH_API_URL: http://langgraph-api:8000
     frontend:
         build:
             context: ./front
             dockerfile: Dockerfile
+        volumes:
+            - ./files/:/files/:ro
+            - ./data/jupyter:/home/jupyter/:ro
+            - ./data/runs:/runs/:ro
         ports:
             - "8502:80"
         depends_on:

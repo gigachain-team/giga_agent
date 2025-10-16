@@ -13,6 +13,7 @@ from langchain_core.runnables import (
 from giga_agent.agents.landing_agent.config import LandingState, llm
 from giga_agent.agents.landing_agent.tools import done
 from giga_agent.agents.landing_agent.prompts.ru import CODER_PROMPT
+from giga_agent.utils.jupyter import REPLUploader, RunUploadFile
 from giga_agent.utils.lang import LANG
 from giga_agent.output_parsers.html_parser import HTMLParser
 
@@ -94,6 +95,24 @@ async def coder_node(state: LandingState, config: RunnableConfig):
     )
     if config["configurable"].get("print_messages", False):
         resp["message"].pretty_print()
+    html = resp["html"]
+    for image in state["images"]:
+        html = html.replace(
+            image["name"],
+            f'/files/runs/{config["configurable"]["thread_id"]}/{image["name"]}',
+        )
+    uploader = REPLUploader()
+    upload_files = [
+        RunUploadFile(
+            path=f"page.html",
+            file_type="html",
+            content=html,
+        )
+    ]
+    upload_resp = await uploader.upload_run_files(
+        upload_files, config["configurable"]["thread_id"]
+    )
+    uploaded = upload_resp[0]
     action = state["agent_messages"][-1].tool_calls[0]
     return {
         "coder_messages": [new_message, resp["message"]],
@@ -108,7 +127,7 @@ async def coder_node(state: LandingState, config: RunnableConfig):
             ),
             artifact=resp["html"],
         ),
-        "html": resp["html"],
+        "html": uploaded,
         "coder_plan_loaded": True,
     }
 

@@ -6,6 +6,7 @@ from langgraph.graph import add_messages
 
 from giga_agent.utils.env import load_project_env
 from giga_agent.utils.llm import load_llm
+from giga_agent.utils.types import UploadedFile
 
 load_project_env()
 
@@ -27,6 +28,6 @@ class LandingState(TypedDict):
     coder_messages: Annotated[list[AnyMessage], add_messages]
     coder_plan_loaded: bool
     images: Annotated[List[str], add]
-    images_base_64: Dict[str, str]
-    html: str
+    images_uploaded: Dict[str, UploadedFile]
+    html: UploadedFile
     done: str

@@ -1,8 +1,10 @@
+import os
 import traceback
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Body
 from langchain_gigachat.utils.function_calling import convert_to_gigachat_tool
+from langgraph_sdk.client import get_client
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.prebuilt.tool_node import _handle_tool_error, ToolNode
 from pydantic_core import ValidationError
@@ -34,6 +36,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+langgraph_client = get_client(url=os.getenv("LANGGRAPH_API_URL", "http://0.0.0.0:2024"))
 
 
 @app.post("/{tool_name}")
@@ -51,7 +54,13 @@ async def call_tool(tool_name: str, payload: dict = Body(...)):
                 return JSONResponse({"data": await repl_tool_map[tool_name](**kwargs)})
             tool = tool_map[tool_name]
             kwargs = payload.get("kwargs")
-            state = payload.get("state")
+            thread_id = payload.get("thread_id")
+            checkpoint_id = payload.get("checkpoint_id")
+            state = (
+                await langgraph_client.threads.get_state(
+                    thread_id=thread_id, checkpoint_id=checkpoint_id
+                )
+            )["values"]
             injected_args = config["tool_node"].inject_tool_args(
                 {"name": tool.name, "args": kwargs, "id": "123"}, state, None
             )["args"]
@@ -66,7 +75,10 @@ async def call_tool(tool_name: str, payload: dict = Body(...)):
                     status_code=500,
                     content=f"Ошибка в заполнении функции!\n{content}\nЗаполни параметры функции по следующей схеме: {tool_schema}",
                 )
-            data = await tool_map[tool_name].ainvoke(injected_args)
+            graph_config = {
+                "configurable": {"thread_id": thread_id, "checkpoint_id": checkpoint_id}
+            }
+            data = await tool_map[tool_name].ainvoke(injected_args, config=graph_config)
             return {"data": data}
         except Exception as e:
             traceback.print_exc()

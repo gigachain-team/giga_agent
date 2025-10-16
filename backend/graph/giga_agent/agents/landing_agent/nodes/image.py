@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import json
 import uuid
 
@@ -13,6 +14,7 @@ from langchain_core.runnables import (
 
 from giga_agent.agents.landing_agent.config import llm, LandingState
 from giga_agent.agents.landing_agent.prompts.ru import IMAGE_PROMPT
+from giga_agent.utils.jupyter import REPLUploader, RunUploadFile
 from giga_agent.utils.lang import LANG
 from giga_agent.generators.image import load_image_gen
 from giga_agent.utils.env import load_project_env
@@ -89,12 +91,26 @@ async def image_node(state: LandingState, config: RunnableConfig):
         for i in filtered_images
     ]
     images_data = await asyncio.gather(*tasks, return_exceptions=True)
-    images_base_64 = state.get("images_base_64", {})
+
+    uploader = REPLUploader()
+    upload_files = [
+        RunUploadFile(
+            path=i["name"],
+            file_type="image",
+            content=base64.b64decode(image),
+        )
+        for i, image in zip(filtered_images, images_data)
+    ]
+    upload_resp = await uploader.upload_run_files(
+        upload_files, config["configurable"]["thread_id"]
+    )
+
+    images_uploaded = state.get("images_uploaded", {})
     new_images = []
-    for i, b in zip(filtered_images, images_data):
+    for i, b in zip(filtered_images, upload_resp):
         if isinstance(b, Exception):
             continue
-        images_base_64[i["name"]] = b
+        images_uploaded[i["name"]] = b
         new_images.append(i)
     action = state["agent_messages"][-1].tool_calls[0]
     return {
@@ -110,7 +126,7 @@ async def image_node(state: LandingState, config: RunnableConfig):
                 ensure_ascii=False,
             ),
         ),
-        "images_base_64": images_base_64,
+        "images_uploaded": images_uploaded,
         "image_plan_loaded": True,
     }
 

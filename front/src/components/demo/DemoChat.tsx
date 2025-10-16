@@ -1,18 +1,17 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
-import MessageList from "./MessageList";
-import InputArea from "./InputArea";
+import MessageList from "../MessageList";
+import InputArea from "../InputArea";
 import { useStream } from "@langchain/langgraph-sdk/react";
-import { useStableMessages } from "../hooks/useStableMessages";
-import { GraphState } from "../interfaces";
+import { useStableMessages } from "../../hooks/useStableMessages";
+import { GraphState } from "../../interfaces";
 import { HumanMessage } from "@langchain/langgraph-sdk";
 import { useNavigate, useParams } from "react-router-dom";
-import { useDemoItems } from "../hooks/DemoItemsProvider.tsx";
-import Message from "./Message.tsx";
+import { useDemoItems } from "../../hooks/DemoItemsProvider.tsx";
+import Message from "../Message.tsx";
 import DemoToolBar from "./DemoToolBar.tsx";
 import { uiMessageReducer } from "@langchain/langgraph-sdk/react-ui";
-import { PROGRESS_AGENTS } from "../config.ts";
-import { SelectedAttachmentsProvider } from "../hooks/SelectedAttachmentsContext.tsx";
+import { SelectedAttachmentsProvider } from "../../hooks/SelectedAttachmentsContext.tsx";
 // @ts-ignore
 import { UseStream } from "@langchain/langgraph-sdk/dist/react/stream";
 
@@ -55,7 +54,11 @@ interface DemoChatProps {
   onThreadReady?: (thread: UseStream<GraphState>) => void;
 }
 
-const DemoChat = ({ onContinue, onThreadIdChange, onThreadReady }: DemoChatProps) => {
+const DemoChat = ({
+  onContinue,
+  onThreadIdChange,
+  onThreadReady,
+}: DemoChatProps) => {
   const navigate = useNavigate();
   const { demoIndex } = useParams<{ demoIndex: string }>();
   const { demoItems } = useDemoItems();

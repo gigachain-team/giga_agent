@@ -1,10 +1,10 @@
 import asyncio
-import base64
 import os
 import uuid
 from typing import Optional, Annotated
 
 from langchain_core.tools import tool
+from langgraph.config import RunnableConfig
 from langgraph.constants import START
 from langgraph.graph import StateGraph
 from langgraph.graph.ui import push_ui_message
@@ -31,6 +31,7 @@ from giga_agent.agents.podcast.tts_sber import (
     get_sber_tts_token,
 )
 from giga_agent.agents.podcast.utils import parse_url, generate_script
+from giga_agent.utils.jupyter import RunUploadFile, REPLUploader
 from giga_agent.utils.lang import LANG
 from giga_agent.utils.env import load_project_env
 from giga_agent.utils.messages import filter_tool_calls
@@ -91,7 +92,7 @@ async def script(state: PodcastState):
     return {"dialogue": llm_output}
 
 
-async def audio_gen(state: PodcastState):
+async def audio_gen(state: PodcastState, config: RunnableConfig):
     # Обрабатываем диалог
     audio_segments = []
     transcript = ""
@@ -109,7 +110,9 @@ async def audio_gen(state: PodcastState):
         total_characters += len(line.text)
         sber_auth_token = os.getenv("SALUTE_SPEECH")
         salute_speech_scope = os.getenv("SALUTE_SPEECH_SCOPE", "SALUTE_SPEECH_PERS")
-        salute_access_token = await get_sber_tts_token(sber_auth_token, scope=salute_speech_scope)
+        salute_access_token = await get_sber_tts_token(
+            sber_auth_token, scope=salute_speech_scope
+        )
         try:
             audio_data = await generate_podcast_audio(
                 line.text, salute_access_token, line.speaker
@@ -134,8 +137,20 @@ async def audio_gen(state: PodcastState):
     audio_file = await asyncio.to_thread(combined_audio.export, format="mp3")
     audio_bytes = await asyncio.to_thread(audio_file.read)
 
-    audio = base64.b64encode(audio_bytes).decode("ascii")
-    return {"audio": audio, "transcript": transcript}
+    uploader = REPLUploader()
+    upload_files = [
+        RunUploadFile(
+            path=f"podcast.mp3",
+            file_type="audio",
+            content=audio_bytes,
+        )
+    ]
+    upload_resp = await uploader.upload_run_files(
+        upload_files, config["configurable"]["thread_id"]
+    )
+    uploaded = upload_resp[0]
+
+    return {"audio": uploaded, "transcript": transcript}
 
 
 workflow = StateGraph(PodcastState, ConfigSchema)
@@ -209,13 +224,10 @@ async def podcast_generate(
                     "node": list(chunk.data.keys())[0],
                 },
             )
-    file_id = str(uuid.uuid4())
     return {
         "transcript": state.get("transcript"),
-        "message": f'В результате выполнения было сгенерирован аудио-файл {file_id}. Покажи его пользователю через "![Аудио](audio:{file_id})" и напиши ответ с краткой информацией по подкасту',
-        "giga_attachments": [
-            {"type": "audio/mp3", "file_id": file_id, "data": state.get("audio")}
-        ],
+        "message": f'В результате выполнения было сгенерирован аудио-файл {state.get("audio")["path"]}. Покажи его пользователю через "![alt-описание](attachment:{state.get("audio")["path"]})" и напиши ответ с краткой информацией по подкасту',
+        "giga_attachments": [state.get("audio")],
     }
 
 

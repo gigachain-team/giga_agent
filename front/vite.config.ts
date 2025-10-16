@@ -18,6 +18,11 @@ export default defineConfig(({ mode }) => {
     process.env.LANGGRAPH_API_URL ||
     "http://127.0.0.1:2024/";
 
+  const GIGA_AGENT_API =
+    env.GIGA_AGENT_API ||
+    process.env.GIGA_AGENT_API ||
+    "http://127.0.0.1:8822/";
+
   return {
     plugins: [
       react(),
@@ -41,6 +46,11 @@ export default defineConfig(({ mode }) => {
           target: LANGGRAPH_API_URL,
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/graph/, ""),
+        },
+        "/api": {
+          target: GIGA_AGENT_API,
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api/, ""),
         },
       },
       port: 3000,

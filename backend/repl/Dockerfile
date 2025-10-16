@@ -32,8 +32,6 @@ RUN uv sync --locked
 
 COPY ./app/ /app/
 
-COPY ./models/ /models/
-
 COPY ./__init__.py /
 
 RUN mkdir -p /mnt/

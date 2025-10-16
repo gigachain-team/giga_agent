@@ -1,17 +1,21 @@
-FROM mikelarg/aegra:0.001
+FROM mikelarg/aegra:0.002
 
 USER root
 
 RUN apt-get update && apt-get install -y ffmpeg libavcodec-extra
+
+# The installer requires curl (and certificates) to download the release archive
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates
+
+RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
+RUN apt-get install -y nodejs
+RUN npm install -g npm@latest
 
 WORKDIR /
 
 COPY ./pyproject.toml /pyproject.toml
 COPY ./uv.lock /uv.lock
 COPY ./README.md /README.md
-
-# The installer requires curl (and certificates) to download the release archive
-RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates
 
 # Download the latest installer
 ADD https://astral.sh/uv/install.sh /uv-installer.sh

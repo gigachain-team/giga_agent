@@ -72,6 +72,8 @@ const MessageList = forwardRef<any, MessageListProps>(
               message={message}
               name={
                 // @ts-ignore
+                messages[idx - 1]?.tool_calls &&
+                // @ts-ignore
                 messages[idx - 1]?.tool_calls[0]
                   ? // @ts-ignore
                     messages[idx - 1]?.tool_calls[0].name

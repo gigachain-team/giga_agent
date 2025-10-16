@@ -20,9 +20,9 @@ from sqlalchemy.orm import sessionmaker
 from langgraph_sdk import get_client
 
 from giga_agent.utils.env import load_project_env
-from giga_agent.utils.llm import is_llm_image_inline
+from giga_agent.utils.llm import is_llm_image_inline, upload_file_with_retry
 
-from giga_agent.config import llm
+load_project_env()
 
 
 # --- Модель данных ---
@@ -196,8 +196,8 @@ async def delete_task(task_id: str):
 
 
 @app.get("/html/{html_id}/", response_class=HTMLResponse)
-async def get_task(html_id: str):
-    client = get_client()
+async def get_html(html_id: str):
+    client = get_client(url=os.getenv("LANGGRAPH_API_URL", "http://0.0.0.0:2024"))
     result = await client.store.get_item(("html",), key=html_id)
     if result:
         return HTMLResponse(content=result["value"]["data"], status_code=200)
@@ -207,27 +207,14 @@ async def get_task(html_id: str):
 
 @app.post("/upload/image/")
 async def upload_image(file: UploadFile = File(...)):
-    client = get_client()
     file_bytes = await file.read()
     if is_llm_image_inline():
-        uploaded_id = (
-            await llm.aupload_file(
-                (
-                    f"{uuid.uuid4()}.jpg",
-                    io.BytesIO(file_bytes),
-                )
+        uploaded_id = await upload_file_with_retry(
+            (
+                f"{uuid.uuid4()}.jpg",
+                io.BytesIO(file_bytes),
             )
-        ).id_
+        )
     else:
         uploaded_id = str(uuid.uuid4())
-    await client.store.put_item(
-        ("attachments",),
-        uploaded_id,
-        {
-            "file_id": uploaded_id,
-            "data": base64.b64encode(file_bytes).decode(),
-            "type": "image/png",
-        },
-        ttl=None,
-    )
     return {"id": uploaded_id}

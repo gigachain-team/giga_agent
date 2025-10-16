@@ -3,3 +3,18 @@ build_graph:
 
 init_files:
 	cp -R backend/repl/files ./files/
+
+up:
+	docker compose up -d
+
+down:
+	docker compose down
+
+up_dev:
+	docker compose -p giga_agent_dev -f docker-compose.yml -f docker-compose.dev.yml up -d
+
+down_dev:
+	docker compose -p giga_agent_dev -f docker-compose.yml -f docker-compose.dev.yml down
+
+build_dev:
+	docker compose -p giga_agent_dev -f docker-compose.yml -f docker-compose.dev.yml build

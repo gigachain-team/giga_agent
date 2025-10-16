@@ -278,7 +278,8 @@ const MessageEditor: React.FC<MessageEditorProps> = ({
               onClick={() => {
                 if (it.kind === "existing") {
                   const f = it.data!;
-                  if (f.file_id) setEnlargedImage("/files/" + f.path);
+                  if (f.file_type === "image")
+                    setEnlargedImage("/files/" + f.path);
                   else openLink("/files/" + f.path);
                 } else if (it.previewUrl) {
                   setEnlargedImage(it.previewUrl);
@@ -286,7 +287,7 @@ const MessageEditor: React.FC<MessageEditorProps> = ({
               }}
             >
               {it.kind === "existing" ? (
-                it.data?.file_id ? (
+                it.data?.file_type === "image" ? (
                   <ImagePreview src={"/files/" + it.data.path} />
                 ) : (
                   <span>
