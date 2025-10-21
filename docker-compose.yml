@@ -115,6 +115,11 @@ services:
         build:
             context: ./front
             dockerfile: Dockerfile
+            args:
+                VITE_LANGCONNECT_API_URL: ${LANGCONNECT_API_URL}
+                VITE_LANGCONNECT_API_SECRET_TOKEN: ${LANGCONNECT_API_SECRET_TOKEN}
+        env_file:
+            - .docker.env
         volumes:
             - ./files/:/files/:ro
             - ./data/jupyter:/home/jupyter/:ro
