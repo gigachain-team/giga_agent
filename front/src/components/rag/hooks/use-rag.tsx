@@ -203,7 +203,7 @@ export function useRag(): UseRagReturn {
       }
 
       const url = getApiUrlOrThrow();
-      url.pathname = "/admin/initialize-database";
+      url.pathname += "admin/initialize-database";
       const response = await fetch(url.toString(), {
         method: "POST",
         headers: {
@@ -237,7 +237,7 @@ export function useRag(): UseRagReturn {
       }
 
       const url = getApiUrlOrThrow();
-      url.pathname = `/collections/${collectionId}/documents`;
+      url.pathname += `collections/${collectionId}/documents`;
       if (args?.limit) {
         url.searchParams.set("limit", args.limit.toString());
       }
@@ -273,7 +273,7 @@ export function useRag(): UseRagReturn {
       }
 
       const url = getApiUrlOrThrow();
-      url.pathname = `/collections/${selectedCollection.uuid}/documents/${id}`;
+      url.pathname += `collections/${selectedCollection.uuid}/documents/${id}`;
 
       const response = await fetch(url.toString(), {
         method: "DELETE",
@@ -379,7 +379,7 @@ export function useRag(): UseRagReturn {
       }
 
       const url = getApiUrlOrThrow();
-      url.pathname = "/collections";
+      url.pathname += "collections";
 
       const response = await fetch(url.toString(), {
         headers: {
@@ -409,7 +409,7 @@ export function useRag(): UseRagReturn {
       }
 
       const url = getApiUrlOrThrow();
-      url.pathname = "/collections";
+      url.pathname += "collections";
 
       const trimmedName = name.trim();
       if (!trimmedName) {
@@ -488,7 +488,7 @@ export function useRag(): UseRagReturn {
       }
 
       const url = getApiUrlOrThrow();
-      url.pathname = `/collections/${collectionId}`;
+      url.pathname += `collections/${collectionId}`;
 
       const updateData = {
         name: trimmedNewName,
@@ -546,7 +546,7 @@ export function useRag(): UseRagReturn {
       }
 
       const url = getApiUrlOrThrow();
-      url.pathname = `/collections/${collectionId}`;
+      url.pathname += `collections/${collectionId}`;
 
       const response = await fetch(url.toString(), {
         method: "DELETE",
