@@ -109,7 +109,7 @@ export function DocumentsCard({
     setIsDragging(false);
 
     const files = event.dataTransfer.files;
-    const acceptedExtensions = [".pdf", ".txt", ".html"];
+    const acceptedExtensions = [".pdf", ".txt", ".html", ".doc", ".docx"];
     const supportedFiles: File[] = [];
     const unsupportedFiles: File[] = [];
 
@@ -127,7 +127,7 @@ export function DocumentsCard({
     if (unsupportedFiles.length > 0) {
       const unsupportedNames = unsupportedFiles.map((f) => f.name).join(", ");
       toast.error(
-        `Неподдерживаемые типы файлов: ${unsupportedNames}. Пожалуйста, используйте PDF, TXT или HTML.`,
+        `Неподдерживаемые типы файлов: ${unsupportedNames}. Пожалуйста, используйте PDF, TXT, DOC, DOCX или HTML.`,
       );
     }
 
