@@ -1,3 +1,4 @@
+import asyncio
 import os
 from typing import TypedDict, Annotated
 
@@ -73,9 +74,18 @@ TOOLS_REQUIRED_ENVS = {
     get_documents.name: [
         "LANGCONNECT_API_URL",
         "LANGCONNECT_API_SECRET_TOKEN",
-        has_collections,
     ],
 }
+
+TOOLS_AGENT_CHECKS = {get_documents.name: [has_collections]}
+
+
+async def run_checks(tool_name: str, state: AgentState):
+    for check in TOOLS_AGENT_CHECKS[tool_name]:
+        if callable(check) and not check(state):
+            return False
+        if asyncio.iscoroutinefunction(check) and not await check(state):
+            return False
 
 
 def has_required_envs(tool) -> bool:

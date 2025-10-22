@@ -3,7 +3,6 @@ from typing import Annotated
 
 import aiohttp
 from langchain_core.tools import tool
-import requests
 
 from giga_agent.utils.types import Collection
 
@@ -52,22 +51,8 @@ async def get_documents(
         return f"<all-documents>\n  <error>{str(e)}</error>\n</all-documents>"
 
 
-def has_collections():
-    rag_url = os.getenv("LANGCONNECT_API_URL")
-    access_token = os.getenv("LANGCONNECT_API_SECRET_TOKEN")
-    if not rag_url or not access_token:
-        return False
-    if rag_url.endswith("/"):
-        rag_url = rag_url[:-1]
-    try:
-        collection_endpoint = f"{rag_url}/collections/"
-        collections = requests.get(
-            collection_endpoint, headers={"Authorization": f"Bearer {access_token}"}
-        )
-        collections = collections.json()
-        return len(collections) > 0
-    except Exception as e:
-        return False
+def has_collections(state):
+    return len(state["collections"]) > 0
 
 
 RAG_PROMPT = """

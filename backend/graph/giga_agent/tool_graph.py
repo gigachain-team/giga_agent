@@ -24,6 +24,8 @@ from giga_agent.config import (
     SERVICE_TOOLS,
     AGENT_MAP,
     load_llm,
+    TOOLS_AGENT_CHECKS,
+    run_checks,
 )
 from giga_agent.prompts.few_shots import FEW_SHOTS_ORIGINAL, FEW_SHOTS_UPDATED
 from giga_agent.prompts.main_prompt import SYSTEM_PROMPT
@@ -128,8 +130,14 @@ async def before_agent(state: AgentState, config: RunnableConfig):
 
 
 async def agent(state: AgentState):
+    filtered_tools = []
+    for tool in state["tools"]:
+        if tool["name"] in TOOLS_AGENT_CHECKS:
+            if not await run_checks(tool_name=tool["name"], state=state):
+                continue
+        filtered_tools.append(tool)
     ch = (
-        prompt | llm.bind_tools(state["tools"], parallel_tool_calls=False)
+        prompt | llm.bind_tools(filtered_tools, parallel_tool_calls=False)
     ).with_retry()
     message = await ch.ainvoke(
         {
