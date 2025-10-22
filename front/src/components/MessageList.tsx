@@ -46,6 +46,7 @@ const MessageList = forwardRef<any, MessageListProps>(
         /safari/i.test(navigator.userAgent) &&
         !/chrome|android/i.test(navigator.userAgent),
     );
+    const firstSroll = useRef<boolean>(false);
 
     // Наблюдаем за «сентинелом» внизу списка, чтобы понять, включать ли авто-скролл
     useEffect(() => {
@@ -65,7 +66,13 @@ const MessageList = forwardRef<any, MessageListProps>(
       );
 
       observer.observe(sentinel);
-      return () => observer.disconnect();
+      return () => {
+        if (rafIdRef.current !== null) {
+          window.cancelAnimationFrame(rafIdRef.current);
+          rafIdRef.current = null;
+        }
+        observer.disconnect();
+      };
     }, []);
 
     const maybeAutoScroll = () => {
@@ -77,12 +84,13 @@ const MessageList = forwardRef<any, MessageListProps>(
         rafIdRef.current = null;
         const current = containerRef.current;
         if (!current) return;
-        if (isSafariRef.current) {
+        if (isSafariRef.current || firstSroll) {
           // Safari: избегаем smooth, чтобы не было скачков вверх
           current.scrollTop = current.scrollHeight;
         } else {
           current.scrollTo({ top: current.scrollHeight, behavior: "smooth" });
         }
+        firstSroll.current = true;
       });
     };
 
@@ -100,12 +108,14 @@ const MessageList = forwardRef<any, MessageListProps>(
       const el = containerRef.current;
       if (!el) return;
       if (!userScrollIntentRef.current) return;
-      const nearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 100;
+      const nearBottom =
+        el.scrollTop + el.clientHeight >= el.scrollHeight - 100;
       if (!nearBottom) {
         // Отключаем авто-скролл только если пользователь явно ушёл от низа
         autoScrollEnabledRef.current = false;
       }
     };
+
     useImperativeHandle(ref, () => ({
       scrollToBottom: () => {
         const current = containerRef.current;
@@ -118,24 +128,10 @@ const MessageList = forwardRef<any, MessageListProps>(
         }
       },
     }));
-    // Автоскролл вниз при добавлении нового сообщения, только если авто-скролл включён
-    useEffect(() => {
-      maybeAutoScroll();
-    }, [messages]);
-
-    // При первом монтировании прокручиваем к низу
-    useEffect(() => {
-      const el = containerRef.current;
-      if (!el) return;
-      // Первичная прокрутка без анимации
-      el.scrollTop = el.scrollHeight;
-      return () => {
-        if (rafIdRef.current !== null) {
-          window.cancelAnimationFrame(rafIdRef.current);
-          rafIdRef.current = null;
-        }
-      };
-    }, []);
+    // // Автоскролл вниз при добавлении нового сообщения, только если авто-скролл включён
+    // useEffect(() => {
+    //   maybeAutoScroll();
+    // }, [messages]);
 
     return (
       <MessageListContainer

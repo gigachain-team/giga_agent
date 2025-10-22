@@ -50,7 +50,7 @@ const ChatError = ({ thread }: ChatErrorProps) => {
               // @ts-ignore
               { messages: thread?.messages.at(-1) },
               // @ts-ignore
-              { checkpoint: thread?.history.at(-1).parent_checkpoint },
+              { checkpoint: thread?.history.at(-1).checkpoint },
             )
           }
         >

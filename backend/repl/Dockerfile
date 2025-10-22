@@ -36,9 +36,10 @@ COPY ./__init__.py /
 
 RUN mkdir -p /mnt/
 
-RUN useradd -ms /bin/bash jupyter
-RUN chgrp -R jupyter /mnt/
-RUN chmod -R 777 /mnt/
+RUN useradd -ms /bin/bash jupyter \
+    && chgrp -R jupyter /mnt/ \
+    && chmod -R 777 /mnt/ \
+    && chmod -R 777 /home/jupyter/
 
 # Give the jupyter user ownership of the virtual environment and uv cache
 ENV UV_CACHE_DIR=/var/cache/uv
