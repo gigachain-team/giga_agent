@@ -54,8 +54,8 @@ services:
             context: ./backend/repl
         image: repl:latest
         pull_policy: never
-        user: jupyter
-        command: uv run uvicorn app.main:app --host 0.0.0.0 --port 9090
+        user: root
+        command: sh -c "chown -R jupyter:jupyter /home/jupyter /kernel_states /runs && exec su -s /bin/bash -c 'uv run uvicorn app.main:app --host 0.0.0.0 --port 9090' jupyter"
         environment:
             PLOTLY_RENDERER: plotly_mimetype
             MAX_KERNEL_LIVE: 300
