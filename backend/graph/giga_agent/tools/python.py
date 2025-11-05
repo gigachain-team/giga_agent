@@ -32,16 +32,6 @@ class ExecuteTool(BaseTool):
         client = JupyterClient()
         uploader = REPLUploader()
 
-        if INPUT_REGEX.search(code):
-            return {
-                "message": (
-                    "Перепиши код без использования функции input. "
-                    "Сгенерируй синтетические данные сам"
-                ),
-                "giga_attachments": [],
-                "is_exception": True,
-            }
-
         response = await client.execute(self.kernel_id, code)
         result = response["result"]
         results = []
