@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import styled, { keyframes } from "styled-components";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { dracula } from "react-syntax-highlighter/dist/cjs/styles/prism";
 import { Message } from "@langchain/langgraph-sdk";
@@ -10,108 +9,6 @@ import { PROGRESS_AGENTS, TOOL_MAP } from "../config.ts";
 import type { UseStream } from "@langchain/langgraph-sdk/react";
 import { GraphState } from "../interfaces.ts";
 import MessageAttachment from "./attachments/MessageAttachment.tsx";
-
-const ToolMessageContainer = styled.div`
-  display: flex;
-  align-items: flex-start;
-  margin-bottom: 8px;
-  padding: 12px 36px;
-`;
-
-const Bubble = styled.div`
-  display: flex;
-  flex-direction: column;
-  border: 1px solid gray;
-  color: #fff;
-  padding: 16px 16px;
-  border-radius: 8px;
-  flex: 1;
-  cursor: pointer;
-  max-width: 100%;
-  //min-height: 50px;
-  justify-content: center;
-`;
-
-const Header = styled.div`
-  display: flex;
-  align-items: center;
-`;
-
-const ExpandIcon = styled.span<{ expanded: boolean }>`
-  display: inline-block;
-  margin-right: 8px;
-  transition: transform 0.2s ease;
-  transform: rotate(${(props) => (props.expanded ? "90deg" : "0deg")});
-  font-weight: bold;
-`;
-
-const CollapsedText = styled.span`
-  font-size: 14px;
-`;
-
-const CodeContainer = styled.div<{ expanded: boolean }>`
-  display: ${(props) => (props.expanded ? "block" : "none")};
-  margin-top: 8px;
-  overflow: auto;
-  cursor: text;
-  max-height: ${(props) => (props.expanded ? "400px" : "0")};
-  transition: max-height 0.6s;
-  @media print {
-    display: none;
-  }
-`;
-
-const AttachmentsContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-`;
-
-const AttachmentLink = styled.a`
-  padding: 0 36px;
-  margin-left: 12px;
-  color: white;
-  font-size: 12px;
-  text-decoration: underline;
-`;
-
-const OverlayBox = styled.div`
-  background-color: #1f1f1f;
-  border-radius: 8px;
-  padding: 10px;
-`;
-
-// Анимация перемещения фона слева направо
-const shimmer = keyframes`
-  0% { background-position: -100% 0; }
-  100% { background-position: 200% 0; }
-`;
-
-// Анимация плавного появления
-const fadeIn = keyframes`
-  from { opacity: 0; }
-  to { opacity: 1; }
-`;
-
-const ToolProgress = styled.span`
-  color: transparent;
-  background: linear-gradient(
-    90deg,
-    rgba(200, 200, 200, 0.4) 0%,
-    rgba(200, 200, 200, 0.6) 50%,
-    rgba(200, 200, 200, 0.4) 100%
-  ); // вертикальная светлая линия
-  background-size: 50% 100%;
-  background-repeat: repeat;
-  background-position: -100% 0;
-  background-clip: text;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-
-  animation:
-    ${fadeIn} 0.5s ease-out,
-    ${shimmer} 3.5s linear infinite;
-`;
 
 interface ToolMessageProps {
   message: Message;
@@ -203,15 +100,17 @@ export const ToolExecuting = ({ messages, thread }: ToolExecProps) => {
     return null;
   }
   return (
-    <ToolMessageContainer>
-      <Bubble>
-        <Header>
-          <CollapsedText style={{ marginLeft: "16px" }}>
+    <div className="flex items-start mb-2 px-9">
+      <div className="flex flex-col border border-2 border-border text-foreground p-4 rounded-lg flex-1 cursor-pointer max-w-full justify-center">
+        <div className="flex items-center">
+          <span className="text-sm ml-4">
             Инструмент выполняется{toolName} <Spinner />
             {displayed && (
               <>
                 <br />
-                <ToolProgress>{displayed}</ToolProgress>
+                <span className="text-transparent bg-gradient-to-r from-muted-foreground/40 via-muted-foreground/70 to-muted-foreground/40 bg-clip-text animate-pulse">
+                  {displayed}
+                </span>
               </>
             )}
             {agentProgress?.image && (
@@ -224,10 +123,10 @@ export const ToolExecuting = ({ messages, thread }: ToolExecProps) => {
                 />
               </>
             )}
-          </CollapsedText>
-        </Header>
-      </Bubble>
-    </ToolMessageContainer>
+          </span>
+        </div>
+      </div>
+    </div>
   );
 };
 
@@ -266,18 +165,29 @@ const ToolMessage: React.FC<ToolMessageProps> = ({ message, name }) => {
 
   return (
     <>
-      <ToolMessageContainer>
-        <Bubble>
-          <Header onClick={() => setExpanded((prev) => !prev)}>
-            <ExpandIcon expanded={expanded}>
+      <div className="flex items-start mb-2 px-9">
+        <div className="flex flex-col border border-2 cursor-pointer border-border text-foreground p-4 rounded-lg flex-1 cursor-pointer max-w-full">
+          <div
+            className="flex items-center"
+            onClick={() => setExpanded((prev) => !prev)}
+          >
+            <span
+              className="inline-block mr-2 transition-transform duration-200"
+              style={{ transform: expanded ? "rotate(90deg)" : "rotate(0deg)" }}
+            >
               <ChevronRight size={16} />
-            </ExpandIcon>
-            <CollapsedText>
+            </span>
+            <span className="text-sm">
               Результат выполнения инструмента{toolName}
-            </CollapsedText>
-          </Header>
+            </span>
+          </div>
 
-          <CodeContainer expanded={expanded}>
+          <div
+            className={[
+              "overflow-auto cursor-text transition-[max-height] duration-700 print:hidden",
+              expanded ? "max-h-[400px]" : "max-h-0",
+            ].join(" ")}
+          >
             <SyntaxHighlighter
               language="json"
               lineProps={{
@@ -289,36 +199,37 @@ const ToolMessage: React.FC<ToolMessageProps> = ({ message, name }) => {
             >
               {content}
             </SyntaxHighlighter>
-          </CodeContainer>
-        </Bubble>
-      </ToolMessageContainer>
+          </div>
+        </div>
+      </div>
       {attachments.length > 0 && (
-        <AttachmentsContainer>
+        <div className="flex flex-col gap-3">
           {attachments.map((att: any) => {
             return (
-              <AttachmentLink
+              <a
                 key={att["path"]}
                 href=""
                 onClick={(ev) => handleLinkClick(ev, att)}
+                className="px-9 ml-3 text-foreground text-xs underline"
               >
                 {
                   // @ts-ignore
                   ATTACHMENT_TEXTS[att["file_type"] ?? "image/png"]
                 }{" "}
                 {att["path"].split("/").at(-1)}
-              </AttachmentLink>
+              </a>
             );
           })}
-        </AttachmentsContainer>
+        </div>
       )}
       <OverlayPortal isVisible={!!file} onClose={() => setFile(null)}>
-        <OverlayBox>
+        <div className="bg-card rounded-lg p-2.5">
           {file ? (
             <MessageAttachment path={file["path"]} alt={""} fullScreen={true} />
           ) : (
             <></>
           )}
-        </OverlayBox>
+        </div>
       </OverlayPortal>
     </>
   );

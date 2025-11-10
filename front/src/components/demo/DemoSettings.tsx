@@ -1,93 +1,8 @@
 import React, { useEffect, useRef } from "react";
-import styled from "styled-components";
 import DemoItemEditor from "./DemoItemEditor.tsx";
 import { useDemoItems } from "../../hooks/DemoItemsProvider.tsx";
 import { Plus } from "lucide-react";
-
-const DemoWrapper = styled.div`
-  width: 100%;
-  display: flex;
-  padding: 20px;
-  @media (max-width: 900px) {
-    padding: 0;
-    margin-top: 75px;
-  }
-`;
-
-const DemoContainer = styled.div`
-  display: flex;
-  max-width: 900px;
-  margin: auto;
-  height: 100%;
-  flex: 1;
-  background-color: #212121d9;
-  backdrop-filter: blur(20px);
-  border-radius: 8px;
-  box-shadow: 0 0 50px #00000075;
-  overflow: hidden;
-  @media print {
-    overflow: visible;
-    box-shadow: none;
-    background-color: #1f1f1f;
-  }
-  @media (max-width: 900px) {
-    background-color: #1f1f1f;
-    box-shadow: none;
-  }
-`;
-
-const DemoItems = styled.div`
-  overflow: auto;
-  flex-direction: column;
-  display: flex;
-  width: 100%;
-  height: 100%;
-`;
-
-const ButtonWrapper = styled.div`
-  position: fixed;
-  bottom: 10px;
-  right: 10px;
-`;
-
-const IconButton = styled.button`
-  width: 55px;
-  height: 55px;
-  padding: 0;
-  border: none;
-  border-radius: 50%;
-  color: #ffffff;
-  background: transparent;
-  font-size: 20px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background-color 0.2s;
-
-  &:hover {
-    //background-color: #3b3b3b;
-  }
-
-  &:disabled {
-    //background-color: #2d2d2d;
-    cursor: not-allowed;
-  }
-`;
-
-const AddButton = styled(IconButton)`
-  background-color: #28a745;
-  color: white;
-
-  &:hover:not(:disabled) {
-    background-color: #218838;
-  }
-`;
-
-const Delimiter = styled.hr`
-  width: 100%;
-  border-color: #000000;
-`;
+import { Button } from "@/components/ui/button";
 
 interface DemoSettingsProps {}
 
@@ -110,25 +25,25 @@ const DemoSettings: React.FC<DemoSettingsProps> = () => {
     addItem();
   };
   return (
-    <DemoWrapper>
-      <DemoContainer>
-        <DemoItems ref={itemsRef}>
+    <div className="w-full flex lg:p-5 p-0 lg:mt-0 mt-[75px]">
+      <div className="flex max-w-[900px] mx-auto h-full flex-1 bg-card/80 backdrop-blur-xl rounded-lg shadow-2xl overflow-hidden print:overflow-visible print:shadow-none">
+        <div ref={itemsRef} className="flex flex-col w-full h-full overflow-auto">
           {items
             .sort((a, b) => a.sorting - b.sorting)
             .map((item, idx) => (
               <div key={item.id}>
                 <DemoItemEditor item={item} itemIdx={idx} />
-                <Delimiter />
+                <hr className="w-full border-border" />
               </div>
             ))}
-        </DemoItems>
-        <ButtonWrapper>
-          <AddButton onClick={handleAdd}>
+        </div>
+        <div className="fixed bottom-2.5 right-2.5">
+          <Button variant="brand" size="icon" onClick={handleAdd}>
             <Plus />
-          </AddButton>
-        </ButtonWrapper>
-      </DemoContainer>
-    </DemoWrapper>
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 };
 

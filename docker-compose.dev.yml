@@ -13,7 +13,7 @@ services:
               uv run uvicorn src.agent_server.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app/giga_agent
             "
     repl:
-        command: uv run uvicorn app.main:app --host 0.0.0.0 --port 9090 --reload --reload-dir /app
+        command: uv run uvicorn app.main:app --host 0.0.0.0 --port 9090
         volumes:
             - ./backend/repl/app:/app:rw
     upload_server:

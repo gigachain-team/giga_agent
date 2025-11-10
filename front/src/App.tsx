@@ -1,5 +1,4 @@
 import React, { useRef, useState } from "react";
-import styled from "styled-components";
 import Chat from "./components/Chat";
 import { SettingsProvider } from "./components/Settings.tsx";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
@@ -11,16 +10,7 @@ import type { UseStream } from "@langchain/langgraph-sdk/react";
 import { GraphState } from "./interfaces.ts";
 import { RagProvider } from "@/components/rag/providers/RAG.tsx";
 import RAGInterface from "@/components/rag";
-
-const AppContainer = styled.div`
-  display: flex;
-  height: auto;
-  width: 100%;
-  margin: 0 auto;
-  @media print {
-    height: auto;
-  }
-`;
+import { OAuthCallback } from "@/components/mcp/oauth-callback.tsx";
 
 const InnerApp: React.FC = () => {
   const { demoItemsLoaded } = useDemoItems();
@@ -82,6 +72,7 @@ const InnerApp: React.FC = () => {
             />
           }
         />
+        <Route path="/oauth/callback" element={<OAuthCallback />} />
         <Route path="/rag" element={<RAGInterface />} />
         <Route path="/demo/settings" element={<DemoSettings />} />
       </Routes>
@@ -91,17 +82,24 @@ const InnerApp: React.FC = () => {
 
 const App: React.FC = () => {
   return (
+    // <McpProvider
+    //   urls={[
+    //     `${window.location.protocol}//${window.location.host}/mcp/@https://mcp-dev.bitrix24.tech/mcp`,
+    //     `${window.location.protocol}//${window.location.host}/mcp/@https://mcp.tavily.com/mcp/?tavilyApiKey=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`,
+    //   ]}
+    // >
     <DemoItemsProvider>
       <SettingsProvider>
         <RagProvider>
-          <AppContainer>
+          <div className="flex h-auto w-full mx-auto print:h-auto">
             <BrowserRouter>
               <InnerApp />
             </BrowserRouter>
-          </AppContainer>
+          </div>
         </RagProvider>
       </SettingsProvider>
     </DemoItemsProvider>
+    // </McpProvider>
   );
 };
 

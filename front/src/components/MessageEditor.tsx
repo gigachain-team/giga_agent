@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import styled from "styled-components";
 import { FileData, GraphState } from "../interfaces.ts";
 import { useFileUpload } from "../hooks/useFileUploads.ts";
 import { Paperclip } from "lucide-react";
@@ -17,104 +16,7 @@ import OverlayPortal from "./OverlayPortal.tsx";
 import type { UseStream } from "@langchain/langgraph-sdk/react";
 import { useSelectedAttachments } from "../hooks/SelectedAttachmentsContext.tsx";
 
-const InputContainer = styled.div`
-  padding: 16px;
-  background-color: #2d2d2d;
-  border-radius: 8px;
-  position: relative;
-  @media print {
-    display: none;
-  }
-`;
-
-const InputRow = styled.div`
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
-  position: relative;
-`;
-
-const TextArea = styled.textarea`
-  flex: 1;
-  min-height: 60px;
-  max-height: 200px;
-  resize: none;
-  font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
-    Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
-  padding: 12px;
-  border: none;
-  border-radius: 6px;
-  background-color: #2d2d2d;
-  color: #ffffff;
-  font-size: 16px;
-  line-height: 1.4;
-  overflow-y: auto;
-  outline: none;
-
-  &::placeholder {
-    color: #999999;
-  }
-`;
-
-const FileInput = styled.input`
-  display: none;
-`;
-
-const IconButton = styled.button`
-  padding: 10px;
-  border: none;
-  border-radius: 8px;
-  background-color: #2d2d2d;
-  color: #ffffff;
-  font-size: 14px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background-color 0.2s;
-
-  &:hover {
-    background-color: #3b3b3b;
-  }
-
-  &:disabled {
-    background-color: #2d2d2d;
-    cursor: not-allowed;
-  }
-`;
-
-const SendButton = styled(IconButton)`
-  background-color: #fff;
-  color: black;
-
-  &:hover {
-    background-color: #e7e7e7;
-  }
-`;
-
-const CancelButton = styled(IconButton)`
-  background-color: #000;
-  color: white;
-
-  &:hover {
-    background-color: #101010;
-  }
-`;
-
-const SelectedCounter = styled.div<{ $visible: boolean }>`
-  margin-top: 6px;
-  color: #9e9e9e;
-  font-size: 12px;
-  position: absolute;
-  bottom: 8px;
-  left: 80px;
-  opacity: ${({ $visible }) => ($visible ? 1 : 0)};
-  transform: translateY(${({ $visible }) => ($visible ? 0 : 4)}px);
-  transition: ${({ $visible }) =>
-    $visible ? "opacity 100ms ease, transform 100ms ease" : "none"};
-  pointer-events: none;
-`;
+ 
 
 interface MessageEditorProps {
   message: Message;
@@ -222,44 +124,58 @@ const MessageEditor: React.FC<MessageEditorProps> = ({
 
   return (
     <>
-      <InputContainer>
-        <InputRow>
-          <FileInput
+      <div className="p-4 bg-secondary rounded-lg relative print:hidden">
+        <div className="flex items-end gap-2 relative">
+          <input
+            className="hidden"
             type="file"
             ref={fileInputRef}
             onChange={handleFileChange}
             multiple
           />
-          <IconButton
+          <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
             title="Добавить вложения"
+            className="px-2.5 py-2 rounded-md bg-secondary text-foreground text-sm flex items-center justify-center transition-colors hover:bg-accent disabled:bg-secondary disabled:cursor-not-allowed"
           >
             <Paperclip />
-          </IconButton>
+          </button>
 
-          <TextArea
+          <textarea
             placeholder="Спросите что-нибудь…"
             ref={textRef}
             value={messageText}
             onChange={(e) => setMessageText(e.target.value)}
             onKeyDown={handleKeyDown}
+            className="flex-1 min-h-[60px] max-h-[200px] resize-none font-sans p-3 rounded-md bg-secondary text-foreground placeholder:text-muted-foreground overflow-y-auto outline-none border-0"
           />
-          <CancelButton type="button" title="Отменить" onClick={onCancel}>
+          <button
+            type="button"
+            title="Отменить"
+            onClick={onCancel}
+            className="px-3 py-2 rounded-md bg-background text-foreground text-sm transition-colors hover:bg-accent"
+          >
             Отменить
-          </CancelButton>
-          <SendButton
+          </button>
+          <button
             type="button"
             title="Отправить"
             onClick={handleSendMessage}
+            className="px-3 py-2 rounded-md bg-primary text-primary-foreground text-sm transition-colors hover:opacity-90"
           >
             Отправить
-          </SendButton>
-        </InputRow>
-        <SelectedCounter $visible={selectedCount > 0}>
+          </button>
+        </div>
+        <div
+          className={[
+            "absolute bottom-2 left-20 text-muted-foreground text-xs pointer-events-none transition-opacity duration-100",
+            selectedCount > 0 ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1",
+          ].join(" ")}
+        >
           Выбрано вложений: {selectedCount}
-        </SelectedCounter>
-      </InputContainer>
+        </div>
+      </div>
       {items.length > 0 && (
         <AttachmentsContainer>
           {items.map((it, idx) => (

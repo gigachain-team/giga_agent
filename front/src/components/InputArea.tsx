@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import styled from "styled-components";
 import { HumanMessage } from "@langchain/langgraph-sdk";
 import { Check, Paperclip, Send, X } from "lucide-react";
 import { useSettings } from "./Settings.tsx";
@@ -21,118 +20,7 @@ import { BROWSER_USE_NAME } from "../config.ts";
 import { UseStream } from "@langchain/langgraph-sdk/react";
 import { useRagContext } from "@/components/rag/providers/RAG.tsx";
 
-const InputContainer = styled.div`
-  padding: 16px;
-  background-color: #2d2d2d;
-  border-top: 1px solid #434343;
-  border-radius: 8px;
-  box-shadow: 2px 2px 12px 6px #00000024;
-  @media print {
-    display: none;
-  }
-`;
-
-const InputRow = styled.div`
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
-`;
-
 const MAX_TEXTAREA_HEIGHT = 200; // макс высота в px
-
-const TextArea = styled.textarea`
-  flex: 1;
-  min-height: 60px;
-  max-height: 200px;
-  resize: none;
-  font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
-    Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
-  padding: 12px;
-  border: none;
-  border-radius: 6px;
-  background-color: #2d2d2d;
-  color: #ffffff;
-  font-size: 16px;
-  line-height: 1.4;
-  overflow-y: auto;
-  outline: none;
-
-  &::placeholder {
-    color: #999999;
-  }
-`;
-
-const FileInput = styled.input`
-  display: none;
-`;
-
-const IconButton = styled.button`
-  width: 40px;
-  height: 40px;
-  padding: 0;
-  border: none;
-  border-radius: 50%;
-  background-color: #2d2d2d;
-  color: #ffffff;
-  font-size: 20px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background-color 0.2s;
-
-  &:hover {
-    background-color: #3b3b3b;
-  }
-
-  &:disabled {
-    background-color: #2d2d2d;
-    cursor: not-allowed;
-  }
-`;
-
-const SelectedCounter = styled.div<{ $visible: boolean }>`
-  margin-top: 6px;
-  color: #9e9e9e;
-  font-size: 12px;
-  position: absolute;
-  bottom: 8px;
-  left: 75px;
-  opacity: ${({ $visible }) => ($visible ? 1 : 0)};
-  transform: translateY(${({ $visible }) => ($visible ? 0 : 4)}px);
-  transition: ${({ $visible }) =>
-    $visible ? "opacity 100ms ease, transform 100ms ease" : "none"};
-  pointer-events: none;
-`;
-
-// Зелёная кнопка ✔️
-const ApproveButton = styled(IconButton)`
-  background-color: #28a745;
-  color: white;
-
-  &:hover:not(:disabled) {
-    background-color: #218838;
-  }
-`;
-
-// Красная кнопка ✖️
-const CancelButton = styled(IconButton)`
-  background-color: #dc3545;
-  color: white;
-
-  &:hover:not(:disabled) {
-    background-color: #c82333;
-  }
-`;
-
-const SendButton = styled(IconButton)`
-  background-color: #2d2d2d;
-
-  &:hover:not(:disabled) {
-    background-color: #005bb5;
-  }
-`;
 
 // Прочие стили для превью и оверлея оставляем без изменений...
 
@@ -268,63 +156,69 @@ const InputArea: React.FC<InputAreaProps> = ({ thread }) => {
   };
 
   return (
-    <InputContainer>
-      <InputRow>
-        <FileInput
+    <div className="p-4 bg-card dark:bg-input border-border rounded-lg shadow-[2px_2px_12px_6px_rgba(0,0,0,0.04)] dark:shadow-[2px_2px_12px_6px_rgba(0,0,0,0.14)] print:hidden border-t-1 border-highlight">
+      <div className="flex items-end gap-2 relative">
+        <input
+          className="hidden"
           type="file"
           ref={fileInputRef}
           onChange={handleFileChange}
           multiple
           disabled={thread?.isLoading}
         />
-        <IconButton
+        <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
           disabled={thread?.isLoading}
           title="Добавить вложения"
+          className="w-10 h-10 p-0 rounded-full text-foreground flex items-center justify-center transition-colors cursor-pointer disabled:bg-secondary disabled:cursor-not-allowed"
         >
           <Paperclip />
-        </IconButton>
+        </button>
 
-        <TextArea
+        <textarea
           placeholder="Спросите что-нибудь…"
           ref={textRef}
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={handleKeyDown}
           disabled={thread?.isLoading}
+          className="flex-1 min-h-[60px] max-h-[200px] resize-none font-sans p-3 rounded-md text-foreground placeholder:text-muted-foreground overflow-y-auto outline-none border-0 disabled:opacity-60"
         />
         {thread?.interrupt &&
         thread?.interrupt.value &&
         thread.interrupt.value.type === "approve" &&
         !settings.autoApprove ? (
           <>
-            <CancelButton
+            <button
               onClick={() => handleContinue("comment")}
               disabled={thread.isLoading}
               title="Отменить выполнение"
+              className="w-10 h-10 p-0 rounded-full bg-red-600 text-white flex items-center justify-center transition-colors hover:bg-red-700 disabled:opacity-60"
             >
               <X />
-            </CancelButton>
-            <ApproveButton
+            </button>
+            <button
               onClick={() => handleContinue("approve")}
               disabled={thread.isLoading}
               title="Подтвердить выполнение"
+              className="w-10 h-10 p-0 rounded-full bg-green-600 text-white flex items-center justify-center transition-colors hover:bg-green-700 disabled:opacity-60"
             >
               <Check />
-            </ApproveButton>
+            </button>
           </>
         ) : (
-          <SendButton
+          <button
             type="button"
             onClick={handleSend}
             disabled={thread?.isLoading || !message.trim() || isUploading}
             title="Отправить"
+            className="w-10 h-10 p-0 rounded-full text-foreground flex items-center justify-center transition-colors cursor-pointer disabled:cursor-default disabled:opacity-60"
           >
             <Send />
-          </SendButton>
+          </button>
         )}
-      </InputRow>
+      </div>
 
       {uploads.length > 0 && (
         <AttachmentsContainer>
@@ -360,9 +254,16 @@ const InputArea: React.FC<InputAreaProps> = ({ thread }) => {
         </AttachmentsContainer>
       )}
 
-      <SelectedCounter $visible={selectedCount > 0}>
+      <div
+        className={[
+          "absolute bottom-2 left-[75px] text-muted-foreground text-xs pointer-events-none transition-opacity duration-100",
+          selectedCount > 0
+            ? "opacity-100 translate-y-0"
+            : "opacity-0 translate-y-1",
+        ].join(" ")}
+      >
         Выбрано вложений: {selectedCount}
-      </SelectedCounter>
+      </div>
 
       {enlargedImage && (
         <Overlay onClick={() => setEnlargedImage(null)}>
@@ -370,7 +271,7 @@ const InputArea: React.FC<InputAreaProps> = ({ thread }) => {
           <CloseButton onClick={() => setEnlargedImage(null)}>×</CloseButton>
         </Overlay>
       )}
-    </InputContainer>
+    </div>
   );
 };
 
