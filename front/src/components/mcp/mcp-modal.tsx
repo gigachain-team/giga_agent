@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { Info, Settings, Plus, Trash2, Power, PowerOff } from "lucide-react";
-import { type Tool } from "use-mcp/react";
+import { Info, Settings, Plus, Trash2, Power, PowerOff, X } from "lucide-react";
+import { type Tool } from "mcp-use/react";
 import {
   Dialog,
   DialogContent,
@@ -13,6 +13,18 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useMcp } from "mcp-use/react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Switch } from "@/components/ui/switch";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { detectGigaChatWrongSchema } from "@/components/mcp/utils/detectGigaChatWrongSchema";
 
 interface McpServer {
   id: string;
@@ -20,6 +32,7 @@ interface McpServer {
   enabled: boolean;
   name?: string;
   transportType: "auto" | "http" | "sse";
+  authToken?: string;
 }
 
 // MCP Connection wrapper for a single server
@@ -65,7 +78,7 @@ function McpConnection({
       const isLocal = isLocalHostname || isPrivateLan;
       if (isLocal) return rawUrl;
       // Remote host → используем локальный прокси
-      return `http://localhost:8502/api/mcp/@${rawUrl}`;
+      return `${window.location.protocol}//${window.location.host}/api/mcp/@${rawUrl}`;
     } catch {
       // Если URL некорректный — возвращаем как есть
       return rawUrl;
@@ -81,10 +94,14 @@ function McpConnection({
     transportType: server.transportType,
     callbackUrl: window.location.origin + "/oauth/callback",
     clientName: "GigaAgent",
+    autoReconnect: 3000,
     onPopupWindow: (popup) => {
       // Track popup for UX
       console.log("OAuth popup opened:", popup);
     },
+    customHeaders: server.authToken
+      ? { Authorization: `Bearer ${server.authToken}` }
+      : undefined,
     preventAutoAuth: false, // Prevent automatic popups on page load
   });
 
@@ -120,6 +137,46 @@ const McpServerModal: React.FC<McpServerModalProps> = ({
   onClose,
   onToolsUpdate,
 }) => {
+  type ToolWithEnabled = Tool & { enabled: boolean; disabled?: boolean };
+
+  // Локальное состояние тулов по серверу с флагом enabled
+  const [serverTools, setServerTools] = useState<
+    Record<string, ToolWithEnabled[]>
+  >({});
+  const TOOLS_STORAGE_KEY = "mcpServerTools";
+
+  // Хелпер: персистентное обновление serverTools (включая запись в localStorage)
+  const updateServerTools = (
+    updater: (
+      prev: Record<string, ToolWithEnabled[]>,
+    ) => Record<string, ToolWithEnabled[]>,
+  ) => {
+    setServerTools((prev) => {
+      const next = updater(prev);
+      try {
+        localStorage.setItem(TOOLS_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
+
+  // Инициализация serverTools из localStorage (персистентность)
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(TOOLS_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed && typeof parsed === "object") {
+          setServerTools(parsed);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
   // Ретрансляция OAuth-сообщений из BroadcastChannel в window.postMessage для use-mcp
   useEffect(() => {
     if (!isOpen) return;
@@ -129,7 +186,6 @@ const McpServerModal: React.FC<McpServerModalProps> = ({
       channel.onmessage = (ev: MessageEvent) => {
         const data = (ev as MessageEvent).data;
         if (data?.type === "mcp_auth_callback") {
-          console.log(data);
           window.postMessage(data, window.location.origin);
         }
       };
@@ -150,14 +206,9 @@ const McpServerModal: React.FC<McpServerModalProps> = ({
     return stored ? JSON.parse(stored) : [];
   });
   const [newServerUrl, setNewServerUrl] = useState("");
-  const [showSettings, setShowSettings] = useState(false);
+  const [showAuthTokenInput, setShowAuthTokenInput] = useState(false);
+  const [newServerAuthToken, setNewServerAuthToken] = useState("");
   const [connectionData, setConnectionData] = useState<Record<string, any>>({});
-  const [serverToolCounts, setServerToolCounts] = useState<
-    Record<string, number>
-  >(() => {
-    const stored = localStorage.getItem("mcpServerToolCounts");
-    return stored ? JSON.parse(stored) : {};
-  });
   const [transportType, _setTransportType] = useState<"auto" | "http" | "sse">(
     () => {
       const stored = localStorage.getItem("mcpTransportType");
@@ -190,14 +241,6 @@ const McpServerModal: React.FC<McpServerModalProps> = ({
     localStorage.setItem("mcpServers", JSON.stringify(servers));
   }, [servers]);
 
-  // Save tool counts to localStorage whenever they change
-  useEffect(() => {
-    localStorage.setItem(
-      "mcpServerToolCounts",
-      JSON.stringify(serverToolCounts),
-    );
-  }, [serverToolCounts]);
-
   // Save transport type to localStorage whenever it changes
   useEffect(() => {
     localStorage.setItem("mcpTransportType", transportType);
@@ -210,20 +253,24 @@ const McpServerModal: React.FC<McpServerModalProps> = ({
     const allTools: Tool[] = [];
 
     servers.forEach((server) => {
-      if (server.enabled && connectionData[server.id]?.tools) {
-        const serverTools = connectionData[server.id].tools.map((t: Tool) => ({
-          ...t,
-          callTool: (args: Record<string, unknown>) =>
-            connectionData[server.id].callTool(t.name, args),
-        }));
-        allTools.push(...serverTools);
-      }
+      if (!server.enabled || connectionData[server.id]?.state !== "ready")
+        return;
+      const list = serverTools[server.id];
+      if (!list || list.length === 0) return;
+      const activeTools = list.filter((t) => t.enabled);
+      if (activeTools.length === 0) return;
+      const withCallTool = activeTools.map((t) => ({
+        ...t,
+        callTool: (args: Record<string, unknown>) =>
+          connectionData[server.id].callTool(t.name, args),
+      }));
+      allTools.push(...withCallTool);
     });
 
     if (onToolsUpdate) {
       onToolsUpdate(allTools);
     }
-  }, [servers, connectionData, onToolsUpdate]);
+  }, [servers, connectionData, serverTools, onToolsUpdate]);
 
   // Handle adding a new server
   const handleAddServer = () => {
@@ -235,10 +282,15 @@ const McpServerModal: React.FC<McpServerModalProps> = ({
       enabled: true,
       name: new URL(newServerUrl.trim()).hostname,
       transportType: newServerTransportType,
+      authToken: newServerAuthToken.trim()
+        ? newServerAuthToken.trim()
+        : undefined,
     };
 
     setServers((prev) => [...prev, newServer]);
     setNewServerUrl("");
+    setNewServerAuthToken("");
+    setShowAuthTokenInput(false);
   };
 
   // Handle removing a server
@@ -255,10 +307,11 @@ const McpServerModal: React.FC<McpServerModalProps> = ({
       delete newData[serverId];
       return newData;
     });
-    setServerToolCounts((prev) => {
-      const newCounts = { ...prev };
-      delete newCounts[serverId];
-      return newCounts;
+    // Удаляем информацию о тулах для этого сервера
+    updateServerTools((prev) => {
+      const next = { ...prev };
+      delete next[serverId];
+      return next;
     });
   };
 
@@ -286,12 +339,76 @@ const McpServerModal: React.FC<McpServerModalProps> = ({
       [serverId]: data,
     }));
 
-    // Store tool count for this server (even if it gets disabled later)
-    if (data.tools && Array.isArray(data.tools)) {
-      setServerToolCounts((prev) => ({
-        ...prev,
-        [serverId]: data.tools.length,
-      }));
+    // Обновляем "список доступных тулов" только при готовом соединении:
+    // - если записи по серверу нет → инициализируем из incoming (enabled=true)
+    // - если запись есть → выполняем синхронизацию:
+    //     сохраняем существующие (ничего не меняем),
+    //     удаляем отсутствующие во входящих,
+    //     добавляем новые входящие с enabled=true.
+    // При пустом incoming или неготовом состоянии — не трогаем запись.
+    try {
+      const incoming: Tool[] = Array.isArray(data?.tools) ? data.tools : [];
+      const isReady = data?.state === "ready";
+      if (!isReady || incoming.length === 0) return;
+      updateServerTools((prev) => {
+        const prevList = prev[serverId];
+        if (!prevList || prevList.length === 0) {
+          const nextList: ToolWithEnabled[] = incoming.map((t) => {
+            const isWrong =
+              t && "inputSchema" in t
+                ? detectGigaChatWrongSchema((t as any).inputSchema)
+                : false;
+            return {
+              ...t,
+              enabled: isWrong ? false : true,
+              disabled: isWrong,
+            };
+          });
+          return { ...prev, [serverId]: nextList };
+        }
+        const incomingNames = new Set(incoming.map((t) => t.name));
+        // Оставляем только те, что есть во входящих
+        const kept = prevList
+          .filter((t) => incomingNames.has(t.name))
+          .map((existing) => {
+            const inc = incoming.find((it) => it.name === existing.name);
+            const isWrong =
+              inc && "inputSchema" in inc
+                ? detectGigaChatWrongSchema((inc as any).inputSchema)
+                : false;
+            if (isWrong) {
+              return {
+                ...existing,
+                disabled: true,
+                enabled: false,
+              };
+            }
+            return {
+              ...existing,
+              disabled: false,
+            };
+          });
+        const keptNames = new Set(kept.map((t) => t.name));
+        // Добавляем новые из входящих
+        const added: ToolWithEnabled[] = incoming
+          .filter((t) => !keptNames.has(t.name))
+          .map((t) => {
+            const isWrong =
+              t && "inputSchema" in t
+                ? detectGigaChatWrongSchema((t as any).inputSchema)
+                : false;
+            return {
+              ...t,
+              enabled: isWrong ? false : true,
+              disabled: isWrong,
+            };
+          });
+        // Существующие не изменяем (имя/описание/enabled остаются как были)
+        const nextList: ToolWithEnabled[] = [...kept, ...added];
+        return { ...prev, [serverId]: nextList };
+      });
+    } catch {
+      // ignore
     }
   };
 
@@ -335,14 +452,6 @@ const McpServerModal: React.FC<McpServerModalProps> = ({
           <DialogHeader>
             <div className="flex items-center justify-between">
               <DialogTitle>MCP Servers</DialogTitle>
-              {/*<Button*/}
-              {/*  variant="outline"*/}
-              {/*  size="icon"*/}
-              {/*  onClick={() => setShowSettings(!showSettings)}*/}
-              {/*  aria-label="Settings"*/}
-              {/*>*/}
-              {/*  <Settings size={16} />*/}
-              {/*</Button>*/}
             </div>
             <DialogDescription>
               <span className="inline-flex items-center gap-2">
@@ -459,19 +568,83 @@ const McpServerModal: React.FC<McpServerModalProps> = ({
                             <h4 className="font-medium text-sm mb-2">
                               Available Tools ({tools.length})
                             </h4>
-                            <div className="border rounded p-2 bg-muted max-h-24 overflow-y-auto space-y-1">
-                              {tools.map((tool: Tool, index: number) => (
-                                <div key={index} className="text-xs">
-                                  <span className="font-medium">
-                                    {tool.name}
-                                  </span>
-                                  {tool.description && (
-                                    <span className="text-muted-foreground ml-2">
-                                      - {tool.description}
-                                    </span>
-                                  )}
-                                </div>
-                              ))}
+                            <div className="border rounded p-2 bg-muted max-h-24 overflow-y-auto">
+                              <div className="flex flex-wrap gap-1">
+                                {(serverTools[server.id] || []).map(
+                                  (tool: ToolWithEnabled, index: number) => (
+                                    <Popover key={`${tool.name}-${index}`}>
+                                      <PopoverTrigger asChild>
+                                        <Badge
+                                          variant={
+                                            tool.disabled ? "destructive" : tool.enabled ? "default" : "outline"
+                                          }
+                                          className={`${
+                                            tool.disabled
+                                              ? "cursor-not-allowed"
+                                              : "cursor-pointer"
+                                          } ${tool.enabled ? "" : "opacity-70"}`}
+                                        >
+                                          {tool.name}
+                                        </Badge>
+                                      </PopoverTrigger>
+                                      <PopoverContent
+                                        align="start"
+                                        className="z-1000"
+                                      >
+                                        <div className="space-y-2">
+                                          <div className="font-medium text-sm">
+                                            {tool.name}
+                                          </div>
+                                          {tool.disabled && (
+                                            <Badge
+                                              variant="destructive"
+                                              className="cursor-not-allowed"
+                                              title="This tool is disabled in GigaChat due to anyOf"
+                                            >
+                                              Tool disabled in GigaChat because of anyOf
+                                            </Badge>
+                                          )}
+                                          {tool.description && (
+                                            <div className="text-xs text-muted-foreground">
+                                              {tool.description}
+                                            </div>
+                                          )}
+                                          <div className="flex items-center justify-between pt-1">
+                                            <span className="text-xs">
+                                              Enabled
+                                            </span>
+                                            <Switch
+                                              disabled={Boolean(tool.disabled)}
+                                              checked={tool.enabled}
+                                              onCheckedChange={(checked) => {
+                                                if (tool.disabled) return;
+                                                updateServerTools((prev) => {
+                                                  const list =
+                                                    prev[server.id] || [];
+                                                  const nextList = list.map(
+                                                    (t, i) =>
+                                                      i === index
+                                                        ? {
+                                                            ...t,
+                                                            enabled:
+                                                              Boolean(checked),
+                                                          }
+                                                        : t,
+                                                  );
+                                                  return {
+                                                    ...prev,
+                                                    [server.id]: nextList,
+                                                  };
+                                                });
+                                              }}
+                                            />
+                                          </div>
+                                        </div>
+                                      </PopoverContent>
+                                    </Popover>
+                                  ),
+                                )}
+                              </div>
                             </div>
                           </div>
                         )}
@@ -517,6 +690,7 @@ const McpServerModal: React.FC<McpServerModalProps> = ({
                   }}
                 />
                 <Button
+                  type="button"
                   onClick={handleAddServer}
                   disabled={!newServerUrl.trim()}
                 >
@@ -524,35 +698,63 @@ const McpServerModal: React.FC<McpServerModalProps> = ({
                   Add
                 </Button>
               </div>
-            </div>
-
-            {/* Debug Info */}
-            {showSettings && (
-              <div className="border-t pt-4 mt-4">
-                <h3 className="font-medium text-sm mb-3">Debug Information</h3>
-                <div className="text-xs space-y-2">
-                  <div>Total Servers: {servers.length}</div>
-                  <div>
-                    Enabled Servers: {servers.filter((s) => s.enabled).length}
-                  </div>
-                  <div>
-                    Connected Servers:{" "}
-                    {
-                      Object.values(connectionData).filter(
-                        (c: any) => c.state === "ready",
-                      ).length
-                    }
-                  </div>
-                  <div>
-                    Total Tools:{" "}
-                    {Object.values(connectionData).reduce(
-                      (sum: number, c: any) => sum + (c.tools?.length || 0),
-                      0,
-                    )}
+              {!showAuthTokenInput && (
+                <div className="mt-2">
+                  <button
+                    type="button"
+                    className="text-xs text-primary underline cursor-pointer"
+                    onClick={() => setShowAuthTokenInput(true)}
+                  >
+                    Add auth token
+                  </button>
+                </div>
+              )}
+              {showAuthTokenInput && (
+                <div className="mt-2 relative">
+                  <Input
+                      type="text"
+                    name="auth_token"
+                      autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    data-protonpass-ignore="true"
+                    data-lpignore="true"
+                    data-1p-ignore="true"
+                      style={
+                        {
+                          WebkitTextSecurity: "disc",
+                          textSecurity: "disc",
+                        } as React.CSSProperties
+                      }
+                    placeholder="Enter auth token"
+                    value={newServerAuthToken}
+                    onChange={(e) => setNewServerAuthToken(e.target.value)}
+                  />
+                  <div className="absolute right-1 top-1 z-1000">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 rounded-full border bg-card hover:bg-muted"
+                          aria-label="Remove auth token"
+                          onClick={() => {
+                            setNewServerAuthToken("");
+                            setShowAuthTokenInput(false);
+                          }}
+                        >
+                          <X size={12} />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent className="z-1000" sideOffset={4}>
+                        Remove auth token
+                      </TooltipContent>
+                    </Tooltip>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </DialogContent>
       </Dialog>

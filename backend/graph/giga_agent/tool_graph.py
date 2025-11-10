@@ -31,6 +31,7 @@ from giga_agent.prompts.few_shots import FEW_SHOTS_ORIGINAL, FEW_SHOTS_UPDATED
 from giga_agent.prompts.main_prompt import SYSTEM_PROMPT
 from giga_agent.repl_tools.utils import describe_repl_tool
 from giga_agent.tool_server.tool_client import ToolClient
+from giga_agent.tool_server.utils import transform_tool
 from giga_agent.tools.rag import get_rag_info
 from giga_agent.utils.env import load_project_env
 from giga_agent.utils.jupyter import JupyterClient, prepend_code
@@ -150,8 +151,18 @@ def get_user_notes():
 
 
 async def agent(state: AgentState):
+    mcp_tools = [
+        transform_tool(
+            {
+                "name": tool["name"],
+                "description": tool.get("description", "."),
+                "parameters": tool.get("inputSchema", {}),
+            }
+        )
+        for tool in state.get("mcp_tools", [])
+    ]
     ch = (
-        prompt | llm.bind_tools(state["tools"], parallel_tool_calls=False)
+        prompt | llm.bind_tools(state["tools"] + mcp_tools, parallel_tool_calls=False)
     ).with_retry()
     message = await ch.ainvoke(
         {
@@ -166,9 +177,9 @@ async def agent(state: AgentState):
 
 
 async def tool_call(state: AgentState, config: RunnableConfig):
-    tool_client = ToolClient()
     action = copy.deepcopy(state["messages"][-1].tool_calls[0])
     value = interrupt({"type": "approve"})
+    tool_client = ToolClient()
     if value.get("type") == "comment":
         return {
             "messages": ToolMessage(

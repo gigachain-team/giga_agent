@@ -2,10 +2,12 @@ import { Message } from "@langchain/langgraph-sdk";
 import { Collection } from "@/types/collection.ts";
 
 import type { Interrupt } from "@langchain/langgraph-sdk";
+import { Tool } from "mcp-use/react";
 
 export interface GraphState extends Record<string, unknown> {
   messages: Message[];
   collections: Collection[];
+  mcp_tools: Tool[];
 }
 
 type BagTemplate = {

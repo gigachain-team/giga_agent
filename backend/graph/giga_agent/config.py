@@ -42,6 +42,9 @@ class AgentState(TypedDict):  # noqa: D101
     tool_call_index: int
     tools: list
     collections: list[Collection]
+    mcp_tools: list[dict[str, dict]]
+    user_notes: str
+    user_secrets: dict[str, str]
 
 
 llm = load_llm()

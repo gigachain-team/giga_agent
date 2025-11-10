@@ -1,6 +1,12 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, {
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  useMemo,
+} from "react";
 import { HumanMessage } from "@langchain/langgraph-sdk";
-import { Check, Paperclip, Send, X } from "lucide-react";
+import { Check, Paperclip, Send, X, Settings2 } from "lucide-react";
 import { useSettings } from "./Settings.tsx";
 import { useFileUpload, UploadedFile } from "../hooks/useFileUploads";
 import { useSelectedAttachments } from "../hooks/SelectedAttachmentsContext.tsx";
@@ -19,6 +25,7 @@ import { FileData, GraphState, GraphTemplate } from "../interfaces.ts";
 import { BROWSER_USE_NAME } from "../config.ts";
 import { UseStream } from "@langchain/langgraph-sdk/react";
 import { useRagContext } from "@/components/rag/providers/RAG.tsx";
+import { Tool } from "mcp-use/react";
 
 const MAX_TEXTAREA_HEIGHT = 200; // макс высота в px
 
@@ -26,9 +33,15 @@ const MAX_TEXTAREA_HEIGHT = 200; // макс высота в px
 
 interface InputAreaProps {
   thread?: UseStream<GraphState, GraphTemplate>;
+  onOpenSettings?: () => void;
+  mcpTools: Tool[];
 }
 
-const InputArea: React.FC<InputAreaProps> = ({ thread }) => {
+const InputArea: React.FC<InputAreaProps> = ({
+  thread,
+  onOpenSettings,
+  mcpTools,
+}) => {
   const [message, setMessage] = useState("");
   const { collections } = useRagContext();
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
@@ -37,6 +50,17 @@ const InputArea: React.FC<InputAreaProps> = ({ thread }) => {
   const { settings } = useSettings();
   const { uploads, uploadFiles, removeUpload, resetUploads } = useFileUpload();
   const { selected, clear } = useSelectedAttachments();
+  const autoApproveLockRef = useRef<unknown>(null);
+
+  const mcpToolsPayload = useMemo(
+    () =>
+      mcpTools.map((tool) => ({
+        name: tool.name,
+        description: tool.description,
+        inputSchema: tool.inputSchema,
+      })),
+    [mcpTools],
+  );
 
   const selectedCount = Object.keys(selected).length;
 
@@ -54,7 +78,11 @@ const InputArea: React.FC<InputAreaProps> = ({ thread }) => {
       } as HumanMessage;
       clear();
       thread?.submit(
-        { messages: [newMessage], collections: collections },
+        {
+          messages: [newMessage],
+          collections: collections,
+          mcp_tools: mcpToolsPayload,
+        },
         {
           optimisticValues(prev) {
             const prevMessages = prev.messages ?? [];
@@ -66,7 +94,7 @@ const InputArea: React.FC<InputAreaProps> = ({ thread }) => {
         },
       );
     },
-    [thread, selected, clear, collections],
+    [thread, selected, clear, collections, mcpToolsPayload],
   );
   const handleContinueThread = useCallback(
     async (data: any) => {
@@ -117,15 +145,31 @@ const InputArea: React.FC<InputAreaProps> = ({ thread }) => {
   );
 
   useEffect(() => {
-    if (
-      thread?.interrupt &&
-      thread?.interrupt.value &&
-      thread.interrupt.value.type === "approve" &&
-      settings.autoApprove
-    ) {
-      handleContinue("approve");
+    const canAutoApprove =
+      !!thread?.interrupt &&
+      thread?.interrupt.value?.type === "approve" &&
+      settings.autoApprove;
+
+    const interruptKey = thread?.interrupt?.value;
+
+    if (!canAutoApprove) {
+      autoApproveLockRef.current = null;
+      return;
     }
-  }, [thread, settings.autoApprove, handleContinue]);
+
+    if (autoApproveLockRef.current === interruptKey) return;
+
+    if (thread?.isLoading) return;
+
+    autoApproveLockRef.current = interruptKey;
+    handleContinue("approve");
+  }, [
+    thread?.interrupt,
+    thread?.interrupt?.value,
+    thread?.isLoading,
+    settings.autoApprove,
+    handleContinue,
+  ]);
 
   const handleSend = () => {
     if (!message.trim() && uploads.length === 0) return;
@@ -166,15 +210,26 @@ const InputArea: React.FC<InputAreaProps> = ({ thread }) => {
           multiple
           disabled={thread?.isLoading}
         />
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={thread?.isLoading}
-          title="Добавить вложения"
-          className="w-10 h-10 p-0 rounded-full text-foreground flex items-center justify-center transition-colors cursor-pointer disabled:bg-secondary disabled:cursor-not-allowed"
-        >
-          <Paperclip />
-        </button>
+        <div className="flex flex-col items-center gap-1">
+          <button
+            type="button"
+            onClick={onOpenSettings}
+            disabled={thread?.isLoading}
+            title="Открыть настройки"
+            className="w-9 h-9 p-0 rounded-full text-foreground flex items-center justify-center transition-colors cursor-pointer disabled:bg-secondary disabled:cursor-not-allowed"
+          >
+            <Settings2 />
+          </button>
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={thread?.isLoading}
+            title="Добавить вложения"
+            className="w-9 h-9 p-0 rounded-full text-foreground flex items-center justify-center transition-colors cursor-pointer disabled:bg-secondary disabled:cursor-not-allowed"
+          >
+            <Paperclip />
+          </button>
+        </div>
 
         <textarea
           placeholder="Спросите что-нибудь…"
@@ -183,7 +238,7 @@ const InputArea: React.FC<InputAreaProps> = ({ thread }) => {
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={handleKeyDown}
           disabled={thread?.isLoading}
-          className="flex-1 min-h-[60px] max-h-[200px] resize-none font-sans p-3 rounded-md text-foreground placeholder:text-muted-foreground overflow-y-auto outline-none border-0 disabled:opacity-60"
+          className="flex-1 min-h-[76px] max-h-[200px] resize-none font-sans p-3 rounded-md text-foreground placeholder:text-muted-foreground overflow-y-auto outline-none border-0 disabled:opacity-60"
         />
         {thread?.interrupt &&
         thread?.interrupt.value &&
@@ -194,7 +249,7 @@ const InputArea: React.FC<InputAreaProps> = ({ thread }) => {
               onClick={() => handleContinue("comment")}
               disabled={thread.isLoading}
               title="Отменить выполнение"
-              className="w-10 h-10 p-0 rounded-full bg-red-600 text-white flex items-center justify-center transition-colors hover:bg-red-700 disabled:opacity-60"
+              className="w-9 h-9 p-0 rounded-full bg-red-600 text-white flex items-center justify-center transition-colors hover:bg-red-700 disabled:opacity-60"
             >
               <X />
             </button>
@@ -202,7 +257,7 @@ const InputArea: React.FC<InputAreaProps> = ({ thread }) => {
               onClick={() => handleContinue("approve")}
               disabled={thread.isLoading}
               title="Подтвердить выполнение"
-              className="w-10 h-10 p-0 rounded-full bg-green-600 text-white flex items-center justify-center transition-colors hover:bg-green-700 disabled:opacity-60"
+              className="w-9 h-9 p-0 rounded-full bg-green-600 text-white flex items-center justify-center transition-colors hover:bg-green-700 disabled:opacity-60"
             >
               <Check />
             </button>
@@ -213,7 +268,7 @@ const InputArea: React.FC<InputAreaProps> = ({ thread }) => {
             onClick={handleSend}
             disabled={thread?.isLoading || !message.trim() || isUploading}
             title="Отправить"
-            className="w-10 h-10 p-0 rounded-full text-foreground flex items-center justify-center transition-colors cursor-pointer disabled:cursor-default disabled:opacity-60"
+            className="w-9 h-9 p-0 rounded-full text-foreground flex items-center justify-center transition-colors cursor-pointer disabled:cursor-default disabled:opacity-60"
           >
             <Send />
           </button>
