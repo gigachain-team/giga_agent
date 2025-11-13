@@ -4,7 +4,6 @@ import React, {
   forwardRef,
   useImperativeHandle,
 } from "react";
-import styled from "styled-components";
 import Message from "./Message.tsx";
 import ToolMessage, { ToolExecuting } from "./ToolMessage.tsx";
 import { Message as Message_ } from "@langchain/langgraph-sdk";
@@ -12,20 +11,6 @@ import ThinkingIndicator from "./ThinkingIndicator.tsx";
 import type { UseStream } from "@langchain/langgraph-sdk/react";
 import { GraphState } from "../interfaces.ts";
 import ChatError from "./ChatError.tsx";
-
-const MessageListContainer = styled.div`
-  flex: 1;
-  overflow-y: auto;
-  padding: 20px;
-  /* Избегаем нежелательных прыжков прокрутки из-за scroll anchoring */
-  overflow-anchor: none;
-  @media (max-width: 900px) {
-    padding: 0;
-  }
-  @media print {
-    overflow: visible;
-  }
-`;
 
 interface MessageListProps {
   messages: Message_[];
@@ -128,17 +113,15 @@ const MessageList = forwardRef<any, MessageListProps>(
         }
       },
     }));
-    // // Автоскролл вниз при добавлении нового сообщения, только если авто-скролл включён
-    // useEffect(() => {
-    //   maybeAutoScroll();
-    // }, [messages]);
 
     return (
-      <MessageListContainer
+      <div
         ref={containerRef}
         onWheel={markUserScrollIntent}
         onTouchStart={markUserScrollIntent}
         onScroll={handleUserScroll}
+        className="flex-1 overflow-y-auto p-5 max-[900px]:p-0 print:overflow-visible"
+        style={{ overflowAnchor: "none" }}
       >
         {children}
         {messages.map((message, idx) =>
@@ -169,7 +152,7 @@ const MessageList = forwardRef<any, MessageListProps>(
         <ToolExecuting messages={messages} thread={thread} />
         <ThinkingIndicator messages={messages} thread={thread} />
         <div ref={bottomSentinelRef} style={{ height: 1 }} />
-      </MessageListContainer>
+      </div>
     );
   },
 );

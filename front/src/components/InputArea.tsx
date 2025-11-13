@@ -1,7 +1,21 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
-import styled from "styled-components";
+import React, {
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  useMemo,
+} from "react";
 import { HumanMessage } from "@langchain/langgraph-sdk";
-import { Check, Paperclip, Send, X } from "lucide-react";
+import {
+  Check,
+  Paperclip,
+  Send,
+  X,
+  Settings2,
+  Brain,
+  Files,
+  Cog,
+} from "lucide-react";
 import { useSettings } from "./Settings.tsx";
 import { useFileUpload, UploadedFile } from "../hooks/useFileUploads";
 import { useSelectedAttachments } from "../hooks/SelectedAttachmentsContext.tsx";
@@ -20,119 +34,17 @@ import { FileData, GraphState, GraphTemplate } from "../interfaces.ts";
 import { BROWSER_USE_NAME } from "../config.ts";
 import { UseStream } from "@langchain/langgraph-sdk/react";
 import { useRagContext } from "@/components/rag/providers/RAG.tsx";
-
-const InputContainer = styled.div`
-  padding: 16px;
-  background-color: #2d2d2d;
-  border-top: 1px solid #434343;
-  border-radius: 8px;
-  box-shadow: 2px 2px 12px 6px #00000024;
-  @media print {
-    display: none;
-  }
-`;
-
-const InputRow = styled.div`
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
-`;
+import Spinner from "./Spinner.tsx";
+import { AnimatePresence, motion } from "framer-motion";
+import { useUserInfo } from "@/components/providers/user-info.tsx";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const MAX_TEXTAREA_HEIGHT = 200; // макс высота в px
-
-const TextArea = styled.textarea`
-  flex: 1;
-  min-height: 60px;
-  max-height: 200px;
-  resize: none;
-  font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
-    Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
-  padding: 12px;
-  border: none;
-  border-radius: 6px;
-  background-color: #2d2d2d;
-  color: #ffffff;
-  font-size: 16px;
-  line-height: 1.4;
-  overflow-y: auto;
-  outline: none;
-
-  &::placeholder {
-    color: #999999;
-  }
-`;
-
-const FileInput = styled.input`
-  display: none;
-`;
-
-const IconButton = styled.button`
-  width: 40px;
-  height: 40px;
-  padding: 0;
-  border: none;
-  border-radius: 50%;
-  background-color: #2d2d2d;
-  color: #ffffff;
-  font-size: 20px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background-color 0.2s;
-
-  &:hover {
-    background-color: #3b3b3b;
-  }
-
-  &:disabled {
-    background-color: #2d2d2d;
-    cursor: not-allowed;
-  }
-`;
-
-const SelectedCounter = styled.div<{ $visible: boolean }>`
-  margin-top: 6px;
-  color: #9e9e9e;
-  font-size: 12px;
-  position: absolute;
-  bottom: 8px;
-  left: 75px;
-  opacity: ${({ $visible }) => ($visible ? 1 : 0)};
-  transform: translateY(${({ $visible }) => ($visible ? 0 : 4)}px);
-  transition: ${({ $visible }) =>
-    $visible ? "opacity 100ms ease, transform 100ms ease" : "none"};
-  pointer-events: none;
-`;
-
-// Зелёная кнопка ✔️
-const ApproveButton = styled(IconButton)`
-  background-color: #28a745;
-  color: white;
-
-  &:hover:not(:disabled) {
-    background-color: #218838;
-  }
-`;
-
-// Красная кнопка ✖️
-const CancelButton = styled(IconButton)`
-  background-color: #dc3545;
-  color: white;
-
-  &:hover:not(:disabled) {
-    background-color: #c82333;
-  }
-`;
-
-const SendButton = styled(IconButton)`
-  background-color: #2d2d2d;
-
-  &:hover:not(:disabled) {
-    background-color: #005bb5;
-  }
-`;
 
 // Прочие стили для превью и оверлея оставляем без изменений...
 
@@ -142,13 +54,35 @@ interface InputAreaProps {
 
 const InputArea: React.FC<InputAreaProps> = ({ thread }) => {
   const [message, setMessage] = useState("");
-  const { collections } = useRagContext();
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
-  const { settings } = useSettings();
   const { uploads, uploadFiles, removeUpload, resetUploads } = useFileUpload();
   const { selected, clear } = useSelectedAttachments();
+  const autoApproveLockRef = useRef<unknown>(null);
+  const [isMCPLoading, setIsMCPLoading] = useState(false);
+
+  const { collections, activeCollections } = useRagContext();
+  const { settings } = useSettings();
+  const { mcpTools, openMcpModal, openContextModal, openCollectionsModal } =
+    useUserInfo();
+
+  const enabledCollections = useMemo(() => {
+    const active = Object.keys(activeCollections).filter(
+      (key) => activeCollections[key],
+    );
+    return collections.filter((collection) => active.includes(collection.uuid));
+  }, [activeCollections, collections]);
+
+  const mcpToolsPayload = useMemo(
+    () =>
+      mcpTools.map((tool) => ({
+        name: tool.name,
+        description: tool.description,
+        inputSchema: tool.inputSchema,
+      })),
+    [mcpTools],
+  );
 
   const selectedCount = Object.keys(selected).length;
 
@@ -166,7 +100,13 @@ const InputArea: React.FC<InputAreaProps> = ({ thread }) => {
       } as HumanMessage;
       clear();
       thread?.submit(
-        { messages: [newMessage], collections: collections },
+        {
+          messages: [newMessage],
+          collections: enabledCollections,
+          mcp_tools: mcpToolsPayload,
+          secrets: settings.contextSecrets,
+          instructions: settings.contextInstructions,
+        },
         {
           optimisticValues(prev) {
             const prevMessages = prev.messages ?? [];
@@ -178,7 +118,15 @@ const InputArea: React.FC<InputAreaProps> = ({ thread }) => {
         },
       );
     },
-    [thread, selected, clear, collections],
+    [
+      thread,
+      selected,
+      clear,
+      mcpToolsPayload,
+      enabledCollections,
+      settings.contextInstructions,
+      settings.contextSecrets,
+    ],
   );
   const handleContinueThread = useCallback(
     async (data: any) => {
@@ -221,23 +169,77 @@ const InputArea: React.FC<InputAreaProps> = ({ thread }) => {
   }, [message]);
 
   const handleContinue = useCallback(
-    (type: "comment" | "approve") => {
-      void handleContinueThread({ type, message });
+    async (type: "comment" | "approve") => {
+      if (
+        thread?.interrupt?.value?.type === "tool_call" &&
+        thread?.interrupt?.value?.args &&
+        thread?.interrupt?.value?.tool_name &&
+        !message
+      ) {
+        const tool = mcpTools.find(
+          (t) => t.name === thread.interrupt?.value?.tool_name,
+        );
+        if (tool) {
+          setIsMCPLoading(true);
+          tool
+            .callTool(thread.interrupt.value.args)
+            .then((result) => {
+              void handleContinueThread({ type, result });
+            })
+            // @ts-ignore
+            .catch((reason) => {
+              void handleContinueThread({
+                type: "comment",
+                message:
+                  "Не удалось подключиться к MCP. Попроси пользователя проверить подключение " +
+                  (reason ? reason : ""),
+              });
+            })
+            .finally(() => {
+              setIsMCPLoading(false);
+            });
+        } else {
+          void handleContinueThread({
+            type: "comment",
+            message:
+              "Не удалось найти нужный MCP. Попроси пользователя проверить подключенные MCP",
+          });
+        }
+      } else {
+        void handleContinueThread({ type, message });
+      }
       setMessage("");
     },
-    [setMessage, handleContinueThread, message],
+    [mcpTools, setMessage, handleContinueThread, message, thread?.interrupt],
   );
 
   useEffect(() => {
-    if (
-      thread?.interrupt &&
-      thread?.interrupt.value &&
-      thread.interrupt.value.type === "approve" &&
-      settings.autoApprove
-    ) {
-      handleContinue("approve");
+    const canAutoApprove =
+      !!thread?.interrupt &&
+      ["approve", "tool_call"].includes(thread?.interrupt.value?.type ?? "") &&
+      settings.autoApprove;
+
+    const interruptKey = thread?.interrupt?.value;
+
+    if (!canAutoApprove) {
+      autoApproveLockRef.current = null;
+      return;
     }
-  }, [thread, settings.autoApprove, handleContinue]);
+
+    if (autoApproveLockRef.current === interruptKey) return;
+
+    if (thread?.isLoading || isMCPLoading) return;
+
+    autoApproveLockRef.current = interruptKey;
+    void handleContinue("approve");
+  }, [
+    thread?.interrupt,
+    thread?.interrupt?.value,
+    thread?.isLoading,
+    isMCPLoading,
+    settings.autoApprove,
+    handleContinue,
+  ]);
 
   const handleSend = () => {
     if (!message.trim() && uploads.length === 0) return;
@@ -252,7 +254,7 @@ const InputArea: React.FC<InputAreaProps> = ({ thread }) => {
       e.preventDefault();
       if (!thread?.isLoading && !isUploading) {
         if (thread?.interrupt) {
-          handleContinue(message ? "comment" : "approve");
+          void handleContinue(message ? "comment" : "approve");
         } else {
           handleSend();
         }
@@ -268,63 +270,133 @@ const InputArea: React.FC<InputAreaProps> = ({ thread }) => {
   };
 
   return (
-    <InputContainer>
-      <InputRow>
-        <FileInput
+    <div className="p-4 bg-card dark:bg-input border-border rounded-lg shadow-[2px_2px_12px_6px_rgba(0,0,0,0.04)] dark:shadow-[2px_2px_12px_6px_rgba(0,0,0,0.14)] print:hidden border-t-1 border-highlight">
+      <div className="flex items-end gap-2 relative">
+        <input
+          className="hidden"
           type="file"
           ref={fileInputRef}
           onChange={handleFileChange}
           multiple
-          disabled={thread?.isLoading}
+          disabled={thread?.isLoading || isMCPLoading}
         />
-        <IconButton
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={thread?.isLoading}
-          title="Добавить вложения"
-        >
-          <Paperclip />
-        </IconButton>
+        <div className="flex flex-col items-center gap-1">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                disabled={thread?.isLoading || isMCPLoading}
+                title="Открыть настройки"
+                className="w-9 h-9 p-0 rounded-full text-foreground flex items-center justify-center transition-colors cursor-pointer outline-hidden disabled:opacity-67"
+              >
+                <Settings2 />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" sideOffset={3}>
+              <DropdownMenuItem onSelect={openContextModal}>
+                <Brain className={"size-5"} />
+                <span>Контекст</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={openMcpModal}>
+                <Cog className={"size-5"} />
+                <span>Инструменты</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={openCollectionsModal}>
+                <Files className={"size-5"} />
+                <span>Знания</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={thread?.isLoading || isMCPLoading}
+            title="Добавить вложения"
+            className="w-9 h-9 p-0 rounded-full text-foreground flex items-center justify-center transition-colors cursor-pointer outline-hidden disabled:opacity-67"
+          >
+            <Paperclip />
+          </button>
+        </div>
 
-        <TextArea
-          placeholder="Спросите что-нибудь…"
+        <textarea
+          placeholder={
+            thread?.interrupt
+              ? "Принять / Отменить с комментарием…"
+              : "Спросите что-нибудь…"
+          }
           ref={textRef}
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={handleKeyDown}
-          disabled={thread?.isLoading}
+          disabled={thread?.isLoading || isMCPLoading}
+          className="flex-1 min-h-[76px] max-h-[200px] resize-none font-sans p-3 rounded-md text-foreground placeholder:text-muted-foreground overflow-y-auto outline-none border-0 disabled:opacity-60"
         />
         {thread?.interrupt &&
         thread?.interrupt.value &&
-        thread.interrupt.value.type === "approve" &&
-        !settings.autoApprove ? (
+        ["approve", "tool_call"].includes(thread.interrupt.value.type) &&
+        (!settings.autoApprove ||
+          thread.interrupt.value.type === "tool_call") ? (
           <>
-            <CancelButton
-              onClick={() => handleContinue("comment")}
-              disabled={thread.isLoading}
-              title="Отменить выполнение"
-            >
-              <X />
-            </CancelButton>
-            <ApproveButton
-              onClick={() => handleContinue("approve")}
-              disabled={thread.isLoading}
-              title="Подтвердить выполнение"
-            >
-              <Check />
-            </ApproveButton>
+            {isMCPLoading ? (
+              <div className="w-9 h-9 flex items-center justify-center">
+                <Spinner size="16" />
+              </div>
+            ) : (
+              <>
+                <motion.div layout className="flex items-center gap-2">
+                  <motion.button
+                    layout
+                    transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                    onClick={() => handleContinue("comment")}
+                    disabled={thread.isLoading || isMCPLoading}
+                    title="Отменить выполнение"
+                    className="w-9 h-9 p-0 rounded-full bg-red-600 text-white flex items-center justify-center transition-colors hover:bg-red-700 disabled:opacity-67"
+                  >
+                    <X />
+                  </motion.button>
+                  <AnimatePresence mode="popLayout">
+                    {!message.trim() && (
+                      <motion.button
+                        key="approve-btn"
+                        layout
+                        initial={{ x: 24, scale: 1, opacity: 1 }}
+                        animate={{ x: 0, scale: 1, opacity: 1 }}
+                        exit={{ x: 24, scale: 1, opacity: 1 }}
+                        transition={{
+                          type: "spring",
+                          stiffness: 500,
+                          damping: 35,
+                        }}
+                        onClick={() => handleContinue("approve")}
+                        disabled={thread.isLoading || isMCPLoading}
+                        title="Подтвердить выполнение"
+                        className="w-9 h-9 p-0 rounded-full bg-green-600 text-white flex items-center justify-center transition-colors hover:bg-green-700 disabled:opacity-67"
+                      >
+                        <Check />
+                      </motion.button>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              </>
+            )}
           </>
         ) : (
-          <SendButton
+          <button
             type="button"
             onClick={handleSend}
-            disabled={thread?.isLoading || !message.trim() || isUploading}
+            disabled={
+              thread?.isLoading ||
+              isMCPLoading ||
+              !message.trim() ||
+              isUploading
+            }
             title="Отправить"
+            className="w-9 h-9 p-0 rounded-full text-foreground flex items-center justify-center transition-colors cursor-pointer outline-hidden disabled:opacity-67"
           >
             <Send />
-          </SendButton>
+          </button>
         )}
-      </InputRow>
+      </div>
 
       {uploads.length > 0 && (
         <AttachmentsContainer>
@@ -360,9 +432,16 @@ const InputArea: React.FC<InputAreaProps> = ({ thread }) => {
         </AttachmentsContainer>
       )}
 
-      <SelectedCounter $visible={selectedCount > 0}>
+      <div
+        className={[
+          "absolute bottom-2 left-[75px] text-muted-foreground text-xs pointer-events-none transition-opacity duration-100",
+          selectedCount > 0
+            ? "opacity-100 translate-y-0"
+            : "opacity-0 translate-y-1",
+        ].join(" ")}
+      >
         Выбрано вложений: {selectedCount}
-      </SelectedCounter>
+      </div>
 
       {enlargedImage && (
         <Overlay onClick={() => setEnlargedImage(null)}>
@@ -370,7 +449,7 @@ const InputArea: React.FC<InputAreaProps> = ({ thread }) => {
           <CloseButton onClick={() => setEnlargedImage(null)}>×</CloseButton>
         </Overlay>
       )}
-    </InputContainer>
+    </div>
   );
 };
 

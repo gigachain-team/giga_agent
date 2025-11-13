@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import styled from "styled-components";
 import { Checkpoint, Message as Message_ } from "@langchain/langgraph-sdk";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
@@ -11,63 +10,6 @@ import MessageEditor from "./MessageEditor.tsx";
 import { ChevronLeft, ChevronRight, Pencil, RefreshCw } from "lucide-react";
 import { useSelectedAttachments } from "../hooks/SelectedAttachmentsContext.tsx";
 import TextMarkdown from "./attachments/TextMarkdown.tsx";
-
-const MessageContainer = styled.div<{
-  type: "function" | "ai" | "human" | "tool" | "system" | "remove";
-}>`
-  display: flex;
-  justify-content: ${({ type }) =>
-    type === "human" ? "flex-end" : "flex-start"};
-  padding: 10px 0;
-`;
-
-const MessageBubble = styled.div<{
-  type: "function" | "ai" | "human" | "tool" | "system" | "remove";
-}>`
-  max-width: ${({ type }) => (type === "human" ? "80%" : "100%")};
-  width: ${({ type }) => (type === "human" ? "auto" : "100%")};
-  padding: ${({ type }) =>
-    type === "human" ? "1rem 1.5rem 0.5rem 1.5rem;" : "0"};
-  border-radius: 25px;
-  background-color: ${({ type }) =>
-    type === "human" ? "#2d2d2d" : "transparent"};
-  color: #ffffff;
-  overflow-x: ${({ type }) => (type === "human" ? "auto" : "visible")};
-`;
-
-const ActionSection = styled.div`
-  margin-top: 8px;
-`;
-
-const Buttons = styled.div`
-  display: flex;
-  flex-grow: 0;
-  justify-content: end;
-`;
-
-const MessageButtons = styled(Buttons)<{ showEdit: boolean; type: string }>`
-  gap: 8px;
-  transition: opacity 0.2s ease;
-  opacity: ${({ showEdit }) => (showEdit ? 1 : 0)};
-  justify-content: ${({ type }) => (type === "ai" ? "start" : "end")};
-`;
-
-const MessageButton = styled.button<{ disabled: boolean }>`
-  transition: transform 0.2s ease;
-  cursor: ${({ disabled }) => (disabled ? "default" : "pointer")};
-  background: transparent;
-  border: none;
-  color: white;
-  padding: 0;
-
-  &:disabled {
-    opacity: 0.5;
-  }
-
-  &:hover {
-    transform: scale(${({ disabled }) => (disabled ? 1.0 : 1.1)});
-  }
-`;
 
 function BranchSwitcher({
   thread,
@@ -85,40 +27,35 @@ function BranchSwitcher({
   const index = branchOptions.indexOf(branch);
 
   return (
-    <Buttons>
-      <MessageButton
+    <div className="flex items-center gap-2">
+      <button
         onClick={() => {
           const prevBranch = branchOptions[index - 1];
           if (!prevBranch) return;
           onSelect(prevBranch);
         }}
         disabled={thread.isLoading}
+        className="transition-transform duration-200 bg-transparent border-0 text-foreground p-0 disabled:opacity-50 cursor-pointer hover:scale-110 disabled:hover:scale-100"
       >
         <ChevronLeft size={16} />
-      </MessageButton>
-      <span style={{ fontSize: "13px" }}>
+      </button>
+      <span className="text-[13px]">
         {index + 1} / {branchOptions.length}
       </span>
-      <MessageButton
+      <button
         onClick={() => {
           const nextBranch = branchOptions[index + 1];
           if (!nextBranch) return;
           onSelect(nextBranch);
         }}
         disabled={thread.isLoading}
+        className="transition-transform duration-200 bg-transparent border-0 text-foreground p-0 disabled:opacity-50 cursor-pointer hover:scale-110 disabled:hover:scale-100"
       >
         <ChevronRight size={16} />
-      </MessageButton>
-    </Buttons>
+      </button>
+    </div>
   );
 }
-
-const SelectedCounter = styled.div`
-  margin-top: 6px;
-  color: #9e9e9e;
-  font-size: 12px;
-  pointer-events: none;
-`;
 
 interface MessageProps {
   message: Message_;
@@ -252,8 +189,20 @@ const Message: React.FC<MessageProps> = ({
         />
       ) : (
         <>
-          <MessageContainer type={message.type}>
-            <MessageBubble type={message.type} className={"markdown"}>
+          <div
+            className={[
+              "flex py-2.5",
+              message.type === "human" ? "justify-end" : "justify-start",
+            ].join(" ")}
+          >
+            <div
+              className={[
+                message.type === "human"
+                  ? "max-w-[80%] w-auto p-4 pt-4 pb-4 rounded-[25px] bg-secondary text-foreground overflow-x-auto"
+                  : "max-w-full w-full p-0 bg-transparent",
+                "markdown",
+              ].join(" ")}
+            >
               <TextMarkdown>{normalizedContent}</TextMarkdown>
 
               {
@@ -261,7 +210,7 @@ const Message: React.FC<MessageProps> = ({
                 message.tool_calls &&
                   // @ts-ignore
                   message.tool_calls.map((tool_call, index) => (
-                    <ActionSection key={index}>
+                    <div key={index} className="mt-2">
                       <div>
                         Действие:{" "}
                         {tool_call.name in TOOL_MAP
@@ -279,7 +228,7 @@ const Message: React.FC<MessageProps> = ({
                           ? tool_call.args.code
                           : JSON.stringify(tool_call.args)}
                       </SyntaxHighlighter>
-                    </ActionSection>
+                    </div>
                   ))
               }
               {
@@ -289,19 +238,19 @@ const Message: React.FC<MessageProps> = ({
                 message.additional_kwargs.selected &&
                 //@ts-ignore
                 Object.keys(message.additional_kwargs.selected).length > 0 ? (
-                  <SelectedCounter>
+                  <div className="mt-1 text-muted-foreground text-xs pointer-events-none">
                     Выбраны вложения:{" "}
                     {
                       //@ts-ignore
                       Object.keys(message.additional_kwargs.selected).length
                     }
-                  </SelectedCounter>
+                  </div>
                 ) : (
                   <></>
                 )
               }
-            </MessageBubble>
-          </MessageContainer>
+            </div>
+          </div>
           {
             //@ts-ignore
             message.additional_kwargs &&
@@ -314,9 +263,15 @@ const Message: React.FC<MessageProps> = ({
               <></>
             )
           }
-          <MessageButtons showEdit={showEdit} type={message.type}>
+          <div
+            className={[
+              "flex flex-grow-0 gap-2 transition-opacity duration-200",
+              showEdit ? "opacity-100" : "opacity-0",
+              message.type === "ai" ? "justify-start" : "justify-end",
+            ].join(" ")}
+          >
             {message.type === "human" && (
-              <MessageButton
+              <button
                 disabled={!thread || thread.isLoading}
                 onClick={() => {
                   setEdit(true);
@@ -332,20 +287,22 @@ const Message: React.FC<MessageProps> = ({
                     setSelectedAttachments(message.additional_kwargs.selected);
                   else clear();
                 }}
+                className="transition-transform duration-200 bg-transparent border-0 text-foreground p-0 disabled:opacity-50 cursor-pointer hover:scale-110 disabled:hover:scale-100"
               >
                 <Pencil size={16} />
-              </MessageButton>
+              </button>
             )}
             {message.type === "ai" && (
-              <MessageButton
+              <button
                 disabled={!thread || thread.isLoading}
                 onClick={onRefresh}
+                className="transition-transform duration-200 cursor-pointer bg-transparent border-0 text-foreground p-0 disabled:opacity-50 cursor-pointer hover:scale-110 disabled:hover:scale-100"
               >
                 <RefreshCw size={16} />
-              </MessageButton>
+              </button>
             )}
             <BranchSwitcher thread={thread} message={message} />
-          </MessageButtons>
+          </div>
         </>
       )}
     </div>

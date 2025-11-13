@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { useDarkMode } from "@/hooks/use-dark-mode.tsx";
 import styled from "styled-components";
 import { useSelectedAttachments } from "../../hooks/SelectedAttachmentsContext.tsx";
 import { Check } from "lucide-react";
@@ -33,9 +34,9 @@ const SelectableContainer = styled.div`
   position: relative;
 `;
 
-const SelectorButton = styled.button<{ $selected: boolean; isGraph: boolean }>`
+const SelectorButton = styled.button<{ $selected: boolean; $isGraph: boolean }>`
   position: absolute;
-  top: ${({ isGraph }) => (isGraph ? "40px" : "8px")};
+  top: ${({ $isGraph }) => ($isGraph ? "40px" : "8px")};
   right: 8px;
   width: 24px;
   height: 24px;
@@ -77,31 +78,55 @@ const Graph: React.FC<GraphProps> = ({ id, alt, data }) => {
         setFig(res.data);
       });
   }, [data.path]);
+
+  const isDark = useDarkMode();
   const { isSelected, toggle } = useSelectedAttachments();
   const selected = isSelected(id);
+  const layout = useMemo(() => {
+    if (!fig) return null;
+    if (isDark) {
+      return {
+        ...fig.layout,
+        template: "plotly_dark",
+        paper_bgcolor: "rgba(0,0,0,0)",
+        plot_bgcolor: "rgba(0,0,0,0)",
+        font: { color: "#fff" },
+        xaxis: {
+          ...fig.layout?.xaxis,
+          gridcolor: "rgba(255,255,255,0.2)",
+          zerolinecolor: "rgba(255,255,255,0.2)",
+        },
+        yaxis: {
+          ...fig.layout?.yaxis,
+          gridcolor: "rgba(255,255,255,0.2)",
+          zerolinecolor: "rgba(255,255,255,0.2)",
+        },
+      };
+    }
+    return {
+      ...fig.layout,
+      template: "plotly_white",
+      paper_bgcolor: "rgba(255,255,255,0)",
+      plot_bgcolor: "rgba(255,255,255,0)",
+      font: { color: "#111" },
+      xaxis: {
+        ...fig.layout?.xaxis,
+        gridcolor: "rgba(0,0,0,0.15)",
+        zerolinecolor: "rgba(0,0,0,0.15)",
+      },
+      yaxis: {
+        ...fig.layout?.yaxis,
+        gridcolor: "rgba(0,0,0,0.15)",
+        zerolinecolor: "rgba(0,0,0,0.15)",
+      },
+    };
+  }, [fig, isDark]);
   if (!fig) return <Placeholder />;
-  const layout = {
-    ...fig.layout,
-    template: "plotly_dark",
-    paper_bgcolor: "rgba(0,0,0,0)",
-    plot_bgcolor: "rgba(0,0,0,0)",
-    font: { color: "#fff" },
-    xaxis: {
-      ...fig.layout?.xaxis,
-      gridcolor: "rgba(255,255,255,0.2)",
-      zerolinecolor: "rgba(255,255,255,0.2)",
-    },
-    yaxis: {
-      ...fig.layout?.yaxis,
-      gridcolor: "rgba(255,255,255,0.2)",
-      zerolinecolor: "rgba(255,255,255,0.2)",
-    },
-  };
   return (
     <SelectableContainer>
       <SelectorButton
         aria-label="select-attachment"
-        isGraph={true}
+        $isGraph={true}
         $selected={selected}
         onClick={(e) => {
           e.stopPropagation();

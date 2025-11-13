@@ -1,51 +1,20 @@
-import React, { useEffect, useRef, useState } from "react";
-import styled from "styled-components";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import MessageList from "../MessageList";
 import InputArea from "../InputArea";
 import { useStream } from "@langchain/langgraph-sdk/react";
 import { useStableMessages } from "../../hooks/useStableMessages";
-import { GraphState } from "../../interfaces";
+import { GraphState } from "@/interfaces";
 import { HumanMessage } from "@langchain/langgraph-sdk";
 import { useNavigate, useParams } from "react-router-dom";
-import { useDemoItems } from "../../hooks/DemoItemsProvider.tsx";
+import { useDemoItems } from "@/hooks/DemoItemsProvider.tsx";
 import Message from "../Message.tsx";
 import DemoToolBar from "./DemoToolBar.tsx";
 import { uiMessageReducer } from "@langchain/langgraph-sdk/react-ui";
-import { SelectedAttachmentsProvider } from "../../hooks/SelectedAttachmentsContext.tsx";
+import { SelectedAttachmentsProvider } from "@/hooks/SelectedAttachmentsContext.tsx";
 import type { UseStream } from "@langchain/langgraph-sdk/react";
-
-const ChatWrapper = styled.div`
-  width: 100%;
-  display: flex;
-  padding: 20px;
-  @media (max-width: 900px) {
-    padding: 0;
-    margin-top: 75px;
-  }
-`;
-
-const ChatContainer = styled.div`
-  display: flex;
-  max-width: 900px;
-  margin: auto;
-  height: 100%;
-  flex-direction: column;
-  flex: 1;
-  background-color: #212121d9;
-  backdrop-filter: blur(20px);
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 0 50px #00000075;
-  @media print {
-    overflow: visible;
-    box-shadow: none;
-    background-color: #1f1f1f;
-  }
-  @media (max-width: 900px) {
-    background-color: #1f1f1f;
-    box-shadow: none;
-  }
-`;
+import { useRagContext } from "@/components/rag/providers/RAG.tsx";
+import { useSettings } from "@/components/Settings.tsx";
+import { useUserInfo } from "@/components/providers/user-info.tsx";
 
 interface DemoChatProps {
   onContinue: () => void;
@@ -68,6 +37,28 @@ const DemoChat = ({
   const listRef = useRef<any>(null);
   const [firstSent, setFirstSend] = useState(false);
   const [isFinished, setIsFinished] = useState(false);
+
+  const { collections, activeCollections } = useRagContext();
+  const { settings } = useSettings();
+  const { mcpTools, openMcpModal, openContextModal, openCollectionsModal } =
+    useUserInfo();
+
+  const enabledCollections = useMemo(() => {
+    const active = Object.keys(activeCollections).filter(
+      (key) => activeCollections[key],
+    );
+    return collections.filter((collection) => active.includes(collection.uuid));
+  }, [activeCollections, collections]);
+
+  const mcpToolsPayload = useMemo(
+    () =>
+      mcpTools.map((tool) => ({
+        name: tool.name,
+        description: tool.description,
+        inputSchema: tool.inputSchema,
+      })),
+    [mcpTools],
+  );
 
   const thread = useStream<GraphState>({
     apiUrl: `${window.location.protocol}//${window.location.host}/graph`,
@@ -115,8 +106,8 @@ const DemoChat = ({
 
   return (
     <SelectedAttachmentsProvider>
-      <ChatWrapper>
-        <ChatContainer>
+      <div className="w-full flex p-5 max-[900px]:p-0 max-[900px]:mt-[75px]">
+        <div className="flex max-w-[900px] mx-auto h-full flex-col flex-1 bg-card text-card-foreground backdrop-blur-2xl rounded-lg overflow-hidden shadow-lg dark:shadow-2xl max-[900px]:shadow-none print:overflow-visible print:shadow-none">
           <MessageList
             messages={stableMessages ?? []}
             thread={thread}
@@ -149,7 +140,13 @@ const DemoChat = ({
                   } as HumanMessage;
 
                   thread.submit(
-                    { messages: [newMessage] },
+                    {
+                      messages: [newMessage],
+                      collections: enabledCollections,
+                      mcp_tools: mcpToolsPayload,
+                      secrets: settings.contextSecrets,
+                      instructions: settings.contextInstructions,
+                    },
                     {
                       optimisticValues(prev) {
                         const prevMessages = prev.messages ?? [];
@@ -166,9 +163,9 @@ const DemoChat = ({
             )}
           </MessageList>
           <InputArea thread={thread} />
-        </ChatContainer>
+        </div>
         <DemoToolBar isFinished={isFinished} onContinue={handleContinueDemo} />
-      </ChatWrapper>
+      </div>
     </SelectedAttachmentsProvider>
   );
 };

@@ -1,7 +1,7 @@
 import asyncio
 import json
 import os
-from typing import TypedDict, Annotated
+from typing import TypedDict, Annotated, Optional
 
 from langchain_core.messages import AnyMessage
 from langgraph.graph import add_messages
@@ -36,12 +36,21 @@ BASEDIR = os.path.abspath(os.path.dirname(__file__))
 load_project_env()
 
 
+class Secret(TypedDict):
+    name: str
+    value: str
+    description: Optional[str]
+
+
 class AgentState(TypedDict):  # noqa: D101
     messages: Annotated[list[AnyMessage], add_messages]
     kernel_id: str
     tool_call_index: int
     tools: list
     collections: list[Collection]
+    mcp_tools: list[dict[str, dict]]
+    instructions: str
+    secrets: list[Secret]
 
 
 llm = load_llm()

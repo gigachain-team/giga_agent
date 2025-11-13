@@ -1,5 +1,4 @@
-import React, { useEffect, useMemo } from "react";
-import styled from "styled-components";
+import React, { useCallback, useEffect, useState } from "react";
 import MessageList from "./MessageList";
 import InputArea from "./InputArea";
 import { useStream } from "@langchain/langgraph-sdk/react";
@@ -9,39 +8,6 @@ import { useNavigate, useParams } from "react-router-dom";
 import { uiMessageReducer } from "@langchain/langgraph-sdk/react-ui";
 import { SelectedAttachmentsProvider } from "../hooks/SelectedAttachmentsContext.tsx";
 import type { UseStream } from "@langchain/langgraph-sdk/react";
-
-const ChatWrapper = styled.div`
-  width: 100%;
-  display: flex;
-  padding: 20px;
-  @media (max-width: 900px) {
-    padding: 0;
-    margin-top: 75px;
-  }
-`;
-
-const ChatContainer = styled.div`
-  display: flex;
-  max-width: 900px;
-  margin: auto;
-  height: 100%;
-  flex-direction: column;
-  flex: 1;
-  background-color: #212121d9;
-  backdrop-filter: blur(20px);
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 0 50px #00000075;
-  @media print {
-    overflow: visible;
-    box-shadow: none;
-    background-color: #1f1f1f;
-  }
-  @media (max-width: 900px) {
-    background-color: #1f1f1f;
-    box-shadow: none;
-  }
-`;
 
 interface ChatProps {
   onThreadIdChange?: (threadId: string) => void;
@@ -84,12 +50,12 @@ const Chat: React.FC<ChatProps> = ({ onThreadIdChange, onThreadReady }) => {
 
   return (
     <SelectedAttachmentsProvider>
-      <ChatWrapper>
-        <ChatContainer>
+      <div className="w-full flex p-5 max-[900px]:p-0 max-[900px]:mt-[75px]">
+        <div className="flex max-w-[900px] mx-auto h-full flex-col flex-1 bg-card text-card-foreground backdrop-blur-2xl rounded-lg overflow-hidden shadow-lg dark:shadow-2xl max-[900px]:shadow-none print:overflow-visible print:shadow-none">
           <MessageList messages={stableMessages ?? []} thread={thread} />
           <InputArea thread={thread} />
-        </ChatContainer>
-      </ChatWrapper>
+        </div>
+      </div>
     </SelectedAttachmentsProvider>
   );
 };

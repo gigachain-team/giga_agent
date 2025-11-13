@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 
+
 export const useDarkMode = () => {
   const [isDarkMode, setIsDarkMode] = useState(checkDarkMode());
 
   function checkDarkMode() {
-    return document.body.classList.contains("dark");
+    return document.documentElement.classList.contains("dark");
   }
 
   useEffect(() => {
@@ -18,7 +19,7 @@ export const useDarkMode = () => {
       });
     });
 
-    mutationObserver.observe(document.body, { attributes: true });
+    mutationObserver.observe(document.documentElement, { attributes: true });
 
     return () => {
       mutationObserver.disconnect();
