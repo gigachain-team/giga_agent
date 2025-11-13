@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Info, Plus, Trash2, Power, PowerOff, X } from "lucide-react";
+import { toast } from "sonner";
 import { type Tool } from "mcp-use/react";
 import {
   Dialog,
@@ -36,6 +37,50 @@ interface McpServer {
   authToken?: string;
 }
 
+const resolveUrlForTransport = (rawUrl: string): string => {
+  try {
+    const target = new URL(rawUrl);
+    const host = target.hostname.toLowerCase();
+
+    const isIPv4 = /^\d{1,3}(\.\d{1,3}){3}$/.test(host);
+    const isIPv6 = host.includes(":");
+
+    const isLocalHostname =
+      host === "localhost" ||
+      host === "0.0.0.0" ||
+      host === "::1" ||
+      host.endsWith(".local");
+
+    let isPrivateLan = false;
+    if (isIPv4) {
+      const [a, b] = host.split(".").map((n) => parseInt(n, 10));
+      if (a === 10) isPrivateLan = true; // 10.0.0.0/8
+      if (a === 127) isPrivateLan = true; // 127.0.0.0/8 loopback
+      if (a === 192 && b === 168) isPrivateLan = true; // 192.168.0.0/16
+      if (a === 172 && b >= 16 && b <= 31) isPrivateLan = true; // 172.16.0.0/12
+      if (a === 169 && b === 254) isPrivateLan = true; // 169.254.0.0/16 link-local
+      if (a === 100 && b >= 64 && b <= 127) isPrivateLan = true; // 100.64.0.0/10 CGNAT
+    }
+    if (isIPv6) {
+      const h = host;
+      if (h === "::1") isPrivateLan = true; // loopback
+      if (h.startsWith("fe80:")) isPrivateLan = true; // link-local
+      if (h.startsWith("fc") || h.startsWith("fd")) isPrivateLan = true; // unique local
+    }
+
+    const isLocal = isLocalHostname || isPrivateLan;
+    if (isLocal) return rawUrl;
+    // Remote host → используем локальный прокси
+    const proxyUrl = MCP_PROXY_URL
+      ? MCP_PROXY_URL
+      : `${window.location.protocol}//${window.location.host}/proxy/`;
+    return `${proxyUrl}${rawUrl}`;
+  } catch {
+    // Если URL некорректный — возвращаем как есть
+    return rawUrl;
+  }
+};
+
 // MCP Connection wrapper for a single server
 function McpConnection({
   server,
@@ -45,50 +90,10 @@ function McpConnection({
   onConnectionUpdate: (serverId: string, data: any) => void;
 }) {
   // Use the MCP hook with the server URL
-  const resolveUrlForTransport = (rawUrl: string): string => {
-    try {
-      const target = new URL(rawUrl);
-      const host = target.hostname.toLowerCase();
-
-      const isIPv4 = /^\d{1,3}(\.\d{1,3}){3}$/.test(host);
-      const isIPv6 = host.includes(":");
-
-      const isLocalHostname =
-        host === "localhost" ||
-        host === "0.0.0.0" ||
-        host === "::1" ||
-        host.endsWith(".local");
-
-      let isPrivateLan = false;
-      if (isIPv4) {
-        const [a, b] = host.split(".").map((n) => parseInt(n, 10));
-        if (a === 10) isPrivateLan = true; // 10.0.0.0/8
-        if (a === 127) isPrivateLan = true; // 127.0.0.0/8 loopback
-        if (a === 192 && b === 168) isPrivateLan = true; // 192.168.0.0/16
-        if (a === 172 && b >= 16 && b <= 31) isPrivateLan = true; // 172.16.0.0/12
-        if (a === 169 && b === 254) isPrivateLan = true; // 169.254.0.0/16 link-local
-        if (a === 100 && b >= 64 && b <= 127) isPrivateLan = true; // 100.64.0.0/10 CGNAT
-      }
-      if (isIPv6) {
-        const h = host;
-        if (h === "::1") isPrivateLan = true; // loopback
-        if (h.startsWith("fe80:")) isPrivateLan = true; // link-local
-        if (h.startsWith("fc") || h.startsWith("fd")) isPrivateLan = true; // unique local
-      }
-
-      const isLocal = isLocalHostname || isPrivateLan;
-      if (isLocal) return rawUrl;
-      // Remote host → используем локальный прокси
-      const proxyUrl = MCP_PROXY_URL
-        ? MCP_PROXY_URL
-        : `${window.location.protocol}//${window.location.host}/proxy/`;
-      return `${proxyUrl}${rawUrl}`;
-    } catch {
-      // Если URL некорректный — возвращаем как есть
-      return rawUrl;
-    }
-  };
-  const effectiveUrl = resolveUrlForTransport(server.url);
+  const effectiveUrl = useMemo(
+    () => resolveUrlForTransport(server.url),
+    [server.url],
+  );
 
   const connection = useMcp({
     enabled: server.enabled,
@@ -225,6 +230,107 @@ const McpServerModal: React.FC<McpServerModalProps> = ({
     "auto" | "http" | "sse"
   >("auto");
 
+  const connectionToastsRef = useRef<
+    Record<string, string | number | undefined>
+  >({});
+  const successfulConnectionsRef = useRef<Set<string>>(new Set());
+
+  const dismissConnectionToast = (serverId: string) => {
+    const prevToastId = connectionToastsRef.current[serverId];
+    if (prevToastId !== undefined) {
+      toast.dismiss(prevToastId);
+      delete connectionToastsRef.current[serverId];
+    }
+  };
+
+  const showConnectionToast = (
+    serverId: string,
+    variant: "loading" | "success" | "error" | "warning",
+    message: string,
+  ) => {
+    dismissConnectionToast(serverId);
+
+    let newToastId;
+    switch (variant) {
+      case "loading": {
+        newToastId = toast.loading(message);
+        break;
+      }
+      case "success":
+        newToastId = toast.success(message);
+        break;
+      case "error":
+        newToastId = toast.error(message);
+        break;
+      case "warning":
+        newToastId = toast.warning(message);
+        break;
+    }
+    if (newToastId !== undefined) {
+      connectionToastsRef.current[serverId] = newToastId;
+    }
+  };
+
+  const getToastConfigForState = (
+    state: string | undefined,
+    url: string | undefined,
+  ):
+    | {
+        variant: "loading" | "success" | "error" | "warning";
+        message: string;
+      }
+    | undefined => {
+    let baseDomain: string | undefined = url;
+    if (url) {
+      try {
+        baseDomain = new URL(url).hostname;
+      } catch {
+        baseDomain = url;
+      }
+    }
+    if (!state || !baseDomain) return undefined;
+
+    switch (state) {
+      case "discovering":
+        return {
+          variant: "loading",
+          message: `Подключение к MCP ${baseDomain}`,
+        };
+      case "connecting":
+        return {
+          variant: "loading",
+          message: `Подключение к MCP ${baseDomain}`,
+        };
+      case "authenticating":
+        return {
+          variant: "loading",
+          message: `Аутентификация на MCP ${baseDomain}`,
+        };
+      case "pending_auth":
+        return {
+          variant: "warning",
+          message: `Для MCP ${baseDomain} требуется аутентификация`,
+        };
+      case "loading":
+        return {
+          variant: "loading",
+          message: `Загрузка инструментов MCP ${baseDomain}`,
+        };
+      case "ready":
+        return {
+          variant: "success",
+          message: `MCP ${baseDomain} успешно подключён`,
+        };
+      case "failed":
+        return {
+          variant: "error",
+          message: `Ошибка подключения к MCP ${baseDomain}`,
+        };
+      default:
+        return undefined;
+    }
+  };
+
   // Helper to cycle through new server transport types
   const cycleNewServerTransportType = () => {
     setNewServerTransportType((current) => {
@@ -306,7 +412,10 @@ const McpServerModal: React.FC<McpServerModalProps> = ({
     if (connection?.disconnect) {
       connection.disconnect();
     }
+    connection.clearStorage();
 
+    dismissConnectionToast(serverId);
+    successfulConnectionsRef.current.delete(serverId);
     setServers((prev) => prev.filter((s) => s.id !== serverId));
     setConnectionData((prev) => {
       const newData = { ...prev };
@@ -336,6 +445,10 @@ const McpServerModal: React.FC<McpServerModalProps> = ({
     if (server?.enabled && connectionData[serverId]?.disconnect) {
       connectionData[serverId].disconnect();
     }
+    if (server?.enabled) {
+      dismissConnectionToast(serverId);
+      successfulConnectionsRef.current.delete(serverId);
+    }
   };
 
   // Handle connection update for a specific server
@@ -344,6 +457,27 @@ const McpServerModal: React.FC<McpServerModalProps> = ({
       ...prev,
       [serverId]: data,
     }));
+
+    const state: string | undefined = data?.state;
+    const server = servers.find((s) => s.id === serverId);
+    const url = server?.url;
+
+    const toastConfig = getToastConfigForState(state, url);
+    if (toastConfig) {
+      const { variant, message } = toastConfig;
+
+      if (variant === "success") {
+        if (successfulConnectionsRef.current.has(serverId)) {
+          dismissConnectionToast(serverId);
+          return;
+        }
+        successfulConnectionsRef.current.add(serverId);
+      } else {
+        successfulConnectionsRef.current.delete(serverId);
+      }
+
+      showConnectionToast(serverId, variant, message);
+    }
 
     // Обновляем "список доступных тулов" только при готовом соединении:
     // - если записи по серверу нет → инициализируем из incoming (enabled=true)

@@ -26,7 +26,7 @@ import { Plus, FileUp, X } from "lucide-react";
 import { DocumentsTable } from "./documents-table";
 import { Collection } from "@/types/collection";
 import { Skeleton } from "@/components/ui/skeleton";
-import { toast } from "react-toastify";
+import { toast } from "sonner";
 import { getCollectionName } from "@/components/rag/hooks/use-rag.tsx";
 import { useRagContext } from "@/components/rag/providers/RAG.tsx";
 
@@ -134,6 +134,7 @@ export function DocumentsCard({
       const unsupportedNames = unsupportedFiles.map((f) => f.name).join(", ");
       toast.error(
         `Неподдерживаемые типы файлов: ${unsupportedNames}. Пожалуйста, используйте PDF, TXT, DOC, DOCX или HTML.`,
+        { richColors: true },
       );
     }
 
@@ -163,7 +164,7 @@ export function DocumentsCard({
     }
 
     setIsUploading(true);
-    const loadingToast = toast.loading("Загрузка файлов");
+    const loadingToast = toast.loading("Загрузка файлов", { richColors: true });
     // Convert File[] to FileList as expected by the hook
     const dataTransfer = new DataTransfer();
     stagedFiles.forEach((file) => dataTransfer.items.add(file));
@@ -171,7 +172,7 @@ export function DocumentsCard({
 
     await handleDocumentFileUpload(fileList, selectedCollection.uuid);
 
-    toast.success("Файлы успешно загружены");
+    toast.success("Файлы успешно загружены", { richColors: true });
     setIsUploading(false);
     toast.dismiss(loadingToast);
     setStagedFiles([]); // Clear staged files after initiating upload
@@ -185,12 +186,16 @@ export function DocumentsCard({
 
     if (textInput.trim()) {
       setIsUploading(true);
-      const loadingToast = toast.loading("Загрузка текстового документа");
+      const loadingToast = toast.loading("Загрузка текстового документа", {
+        richColors: true,
+      });
       await handleDocumentTextUpload(textInput, selectedCollection.uuid);
       setTextInput("");
       setIsUploading(false);
       toast.dismiss(loadingToast);
-      toast.success("Текстовый документ успешно загружен");
+      toast.success("Текстовый документ успешно загружен", {
+        richColors: true,
+      });
     }
   };
 

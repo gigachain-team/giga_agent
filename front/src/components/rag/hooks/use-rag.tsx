@@ -2,7 +2,7 @@ import { useState, Dispatch, SetStateAction, useCallback } from "react";
 import { Document } from "@langchain/core/documents";
 import { v4 as uuidv4 } from "uuid";
 import { Collection, CollectionCreate } from "@/types/collection";
-import { toast } from "react-toastify";
+import { toast } from "sonner";
 import { LANGCONNECT_API_URL, session } from "@/components/rag/utils.ts";
 import { useSettings } from "@/components/Settings";
 
@@ -155,27 +155,34 @@ export function useRag(): UseRagReturn {
   >(undefined);
   const [initialSearchExecuted, setInitialSearchExecuted] = useState(false);
   const { settings, setSettings } = useSettings();
-  const activeCollections: Record<string, boolean> = settings.activeCollections || {};
+  const activeCollections: Record<string, boolean> =
+    settings.activeCollections || {};
 
-  const activateCollection = useCallback((collectionId: string) => {
-    setSettings((prev) => ({
-      ...prev,
-      activeCollections: {
-        ...(prev.activeCollections || {}),
-        [collectionId]: true,
-      },
-    }));
-  }, [setSettings]);
+  const activateCollection = useCallback(
+    (collectionId: string) => {
+      setSettings((prev) => ({
+        ...prev,
+        activeCollections: {
+          ...(prev.activeCollections || {}),
+          [collectionId]: true,
+        },
+      }));
+    },
+    [setSettings],
+  );
 
-  const deactivateCollection = useCallback((collectionId: string) => {
-    setSettings((prev) => ({
-      ...prev,
-      activeCollections: {
-        ...(prev.activeCollections || {}),
-        [collectionId]: false,
-      },
-    }));
-  }, [setSettings]);
+  const deactivateCollection = useCallback(
+    (collectionId: string) => {
+      setSettings((prev) => ({
+        ...prev,
+        activeCollections: {
+          ...(prev.activeCollections || {}),
+          [collectionId]: false,
+        },
+      }));
+    },
+    [setSettings],
+  );
 
   // --- Initial Fetch ---
   const initialFetch = useCallback(async (accessToken: string) => {
@@ -238,9 +245,11 @@ export function useRag(): UseRagReturn {
   const initializeDatabase = useCallback(
     async (accessToken?: string) => {
       if (!session?.accessToken && !accessToken) {
-        toast.error(
-          "Сеанс не найден\nНе удалось получить список документов. Попробуйте ещё раз.",
-        );
+        toast.error("Не удалось подключиться к LangConnect API", {
+          richColors: true,
+          description:
+            "Не удалось получить список документов. Попробуйте ещё раз.",
+        });
         return [];
       }
 
@@ -272,9 +281,11 @@ export function useRag(): UseRagReturn {
       accessToken?: string,
     ): Promise<Document[]> => {
       if (!session?.accessToken && !accessToken) {
-        toast.error(
-          "Сеанс не найден\nНе удалось получить список документов. Попробуйте ещё раз.",
-        );
+        toast.error("Не удалось подключиться к LangConnect API", {
+          richColors: true,
+          description:
+            "Не удалось получить список документов. Попробуйте ещё раз.",
+        });
         return [];
       }
 
@@ -304,9 +315,11 @@ export function useRag(): UseRagReturn {
   const deleteDocument = useCallback(
     async (id: string) => {
       if (!session?.accessToken) {
-        toast.error(
-          "Сеанс не найден\nНе удалось удалить документ. Попробуйте ещё раз.",
-        );
+        toast.error("Не удалось подключиться к LangConnect API", {
+          richColors: true,
+          description:
+            "Не удалось получить удалить документ. Попробуйте ещё раз.",
+        });
         return;
       }
 
@@ -337,9 +350,10 @@ export function useRag(): UseRagReturn {
   const handleFileUpload = useCallback(
     async (files: FileList | null, collectionId: string) => {
       if (!session?.accessToken) {
-        toast.error(
-          "Сеанс не найден\nНе удалось загрузить файл(ы). Попробуйте ещё раз.",
-        );
+        toast.error("Не удалось подключиться к LangConnect API", {
+          richColors: true,
+          description: "Не удалось загрузить файл(ы). Попробуйте ещё раз.",
+        });
         return;
       }
 
@@ -375,9 +389,11 @@ export function useRag(): UseRagReturn {
   const handleTextUpload = useCallback(
     async (textInput: string, collectionId: string) => {
       if (!session?.accessToken) {
-        toast.error(
-          "Сеанс не найден\nНе удалось загрузить текстовый документ. Попробуйте ещё раз.",
-        );
+        toast.error("Не удалось подключиться к LangConnect API", {
+          richColors: true,
+          description:
+            "Не удалось загрузить текстовый документ. Попробуйте ещё раз.",
+        });
         return;
       }
 
@@ -414,9 +430,10 @@ export function useRag(): UseRagReturn {
   const getCollections = useCallback(
     async (accessToken?: string): Promise<Collection[]> => {
       if (!session?.accessToken && !accessToken) {
-        toast.error(
-          "Сеанс не найден\nНе удалось получить коллекции. Попробуйте ещё раз.",
-        );
+        toast.error("Не удалось подключиться к LangConnect API", {
+          richColors: true,
+          description: "Не удалось получить коллекции. Попробуйте ещё раз.",
+        });
         return [];
       }
 
@@ -444,9 +461,10 @@ export function useRag(): UseRagReturn {
       accessToken?: string,
     ): Promise<Collection | undefined> => {
       if (!session?.accessToken && !accessToken) {
-        toast.error(
-          "Сеанс не найден\nНе удалось создать коллекцию. Попробуйте ещё раз.",
-        );
+        toast.error("Не удалось подключиться к LangConnect API", {
+          richColors: true,
+          description: "Не удалось создать коллекцию. Попробуйте ещё раз.",
+        });
         return;
       }
 
@@ -504,9 +522,10 @@ export function useRag(): UseRagReturn {
       metadata: Record<string, any>,
     ): Promise<Collection | undefined> => {
       if (!session?.accessToken) {
-        toast.error(
-          "Сеанс не найден\nНе удалось обновить коллекцию. Попробуйте ещё раз.",
-        );
+        toast.error("Не удалось подключиться к LangConnect API", {
+          richColors: true,
+          description: "Не удалось обновить коллекцию. Попробуйте ещё раз.",
+        });
         return;
       }
 
@@ -516,13 +535,17 @@ export function useRag(): UseRagReturn {
       );
 
       if (!collectionToUpdate) {
-        toast.error(`Коллекция с ID "${collectionId}" не найдена.`);
+        toast.error(`Коллекция с ID "${collectionId}" не найдена.`, {
+          richColors: true,
+        });
         return undefined;
       }
 
       const trimmedNewName = newName.trim();
       if (!trimmedNewName) {
-        toast.error("Название коллекции не может быть пустым.");
+        toast.error("Название коллекции не может быть пустым.", {
+          richColors: true,
+        });
         return undefined;
       }
 
@@ -533,7 +556,12 @@ export function useRag(): UseRagReturn {
           c.name !== collectionToUpdate.name,
       );
       if (nameExists) {
-        toast.warning(`Коллекция с именем "${trimmedNewName}" уже существует.`);
+        toast.warning(
+          `Коллекция с именем "${trimmedNewName}" уже существует.`,
+          {
+            richColors: true,
+          },
+        );
         return undefined;
       }
 
@@ -555,7 +583,9 @@ export function useRag(): UseRagReturn {
       });
 
       if (!response.ok) {
-        toast.error(`Не удалось обновить коллекцию: ${response.statusText}`);
+        toast.error(`Не удалось обновить коллекцию: ${response.statusText}`, {
+          richColors: true,
+        });
         return undefined;
       }
 
@@ -581,9 +611,10 @@ export function useRag(): UseRagReturn {
   const deleteCollection = useCallback(
     async (collectionId: string): Promise<string | undefined> => {
       if (!session?.accessToken) {
-        toast.error(
-          "Сеанс не найден\nНе удалось удалить коллекцию. Попробуйте ещё раз.",
-        );
+        toast.error("Не удалось подключиться к LangConnect API", {
+          richColors: true,
+          description: "Не удалось удалить коллекцию. Попробуйте ещё раз.",
+        });
         return;
       }
 
@@ -618,7 +649,8 @@ export function useRag(): UseRagReturn {
       );
       // удалить из активных
       setSettings((prev) => {
-        const { [collectionId]: _removed, ...rest } = prev.activeCollections || {};
+        const { [collectionId]: _removed, ...rest } =
+          prev.activeCollections || {};
         return { ...prev, activeCollections: rest };
       });
     },

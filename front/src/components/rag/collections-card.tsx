@@ -8,7 +8,7 @@ import { CollectionsList } from "./collections-list";
 import { CreateCollectionDialog } from "./create-collection-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRagContext } from "@/components/rag/providers/RAG.tsx";
-import { toast } from "react-toastify";
+import { toast } from "sonner";
 
 interface CollectionsCardProps {
   collections: Collection[];
@@ -42,7 +42,7 @@ export function CollectionsCard({
   // Handle creating a new collection (uses hook)
   const handleCreateCollection = async (name: string, description: string) => {
     const loadingToast = toast.loading("Создание коллекции", {
-      autoClose: false,
+      richColors: true,
     });
     const success = await createCollection(name, {
       description,
@@ -50,12 +50,13 @@ export function CollectionsCard({
     toast.dismiss(loadingToast);
     if (success) {
       setOpen(false);
-      toast.success("Коллекция успешно создана");
+      toast.success("Коллекция успешно создана", { richColors: true });
     } else {
       toast.warning(
         `Не удалось создать коллекцию с именем '${name}' (вероятно, уже существует).`,
         {
-          autoClose: 5000,
+          duration: 5000,
+          richColors: true,
         },
       );
     }
@@ -63,14 +64,16 @@ export function CollectionsCard({
 
   // Handle deleting a collection (uses collection hook and document hook)
   const handleDeleteCollection = async (id: string) => {
-    const loadingToast = toast.loading("Удаление коллекции");
+    const loadingToast = toast.loading("Удаление коллекции", {
+      richColors: true,
+    });
     await deleteCollection(id);
     toast.dismiss(loadingToast);
-    toast.success("Коллекция успешно удалена");
+    toast.success("Коллекция успешно удалена", { richColors: true });
     if (selectedCollection?.uuid === id) {
       const newSelectedCollection = collections.find((c) => c.uuid !== id);
       if (!newSelectedCollection) {
-        toast.error("Коллекций не осталось.");
+        toast.error("Коллекций не осталось.", { richColors: true });
         return;
       }
       setSelectedCollection(newSelectedCollection);
@@ -85,10 +88,12 @@ export function CollectionsCard({
     name: string,
     metadata: Record<string, any>,
   ) => {
-    const loadingToast = toast.loading("Обновление коллекции");
+    const loadingToast = toast.loading("Обновление коллекции", {
+      richColors: true,
+    });
     await updateCollection(id, name, metadata);
     toast.dismiss(loadingToast);
-    toast.success("Коллекция успешно обновлена");
+    toast.success("Коллекция успешно обновлена", { richColors: true });
   };
 
   return (

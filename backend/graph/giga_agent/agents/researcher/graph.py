@@ -178,13 +178,6 @@ async def researcher_agent(question: str, state: Annotated[dict, InjectedState] 
     client = get_client(url=os.getenv("LANGGRAPH_API_URL", "http://0.0.0.0:2024"))
     thread = await client.threads.create()
     thread_id = thread["thread_id"]
-    push_ui_message(
-        "agent_execution",
-        {
-            "agent": "researcher_agent",
-            "node": "__start__",
-        },
-    )
 
     result_state = {}
     async for chunk in client.runs.stream(
@@ -197,20 +190,12 @@ async def researcher_agent(question: str, state: Annotated[dict, InjectedState] 
                 ("user", question),
             ],
         },
-        stream_mode=["values", "updates"],
+        stream_mode=["values"],
         on_disconnect="cancel",
         config={"configurable": {"thread_id": thread_id}},
     ):
         if chunk.event == "values":
             result_state = chunk.data
-        elif chunk.event == "updates":
-            push_ui_message(
-                "agent_execution",
-                {
-                    "agent": "researcher_agent",
-                    "node": list(chunk.data.keys())[0],
-                },
-            )
     if "files" in result_state:
         if "final_report.md" in result_state["files"]:
             final_report = result_state["files"]["final_report.md"]
@@ -226,7 +211,7 @@ async def researcher_agent(question: str, state: Annotated[dict, InjectedState] 
     uploader = REPLUploader()
     upload_files = [
         RunUploadFile(
-            path="research_result.txt",
+            path="research_result.md",
             file_type="text",
             content=final_report,
         )
@@ -235,7 +220,7 @@ async def researcher_agent(question: str, state: Annotated[dict, InjectedState] 
     upload_resp = upload_resp[0]
 
     return {
-        "message": f'В результате выполнения был получен следующий отчёт и сохранен в файле: {upload_resp["path"]}. Покажи его пользователю через "![alt-описание](attachment:{upload_resp["path"]})". ',
+        "message": f'В результате выполнения был получен следующий отчёт и сохранен в файле: {upload_resp["path"]}. НЕ ВЫВОДИ отчет сам, вместо этого покажи его пользователю через вложение "![alt-описание](attachment:{upload_resp["path"]})" ',
         "text": final_report,
     }
 

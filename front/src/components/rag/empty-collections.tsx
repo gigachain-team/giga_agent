@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { FolderPlus, Layers } from "lucide-react";
 import { useState } from "react";
-import { toast } from "react-toastify";
+import { toast } from "sonner";
 import { useRagContext } from "@/components/rag/providers/RAG.tsx";
 import { CreateCollectionDialog } from "@/components/rag/create-collection-dialog.tsx";
 
@@ -11,8 +11,8 @@ export default function EmptyCollectionsState() {
   const { createCollection, setSelectedCollection } = useRagContext();
 
   const handleSubmit = async (name: string, description: string) => {
-    const loadingToast = toast("Creating collection", {
-      autoClose: false,
+    const loadingToast = toast.loading("Создание коллекции", {
+      richColors: true,
     });
     const newCollection = await createCollection(name, {
       description,
@@ -20,21 +20,24 @@ export default function EmptyCollectionsState() {
     toast.dismiss(loadingToast);
     if (newCollection) {
       setOpen(false);
-      toast.success("Collection created successfully");
+      toast.success("Коллекция успешно создана", {
+        richColors: true,
+      });
       setSelectedCollection(newCollection);
     } else {
       toast.warning(
-        `Collection named '${name}' could not be created (likely already exists).`,
+        `Коллекция с названием '${name}' не может быть создана (скорее всего уже существует).`,
         {
-          autoClose: 5000,
+          duration: 5000,
+          richColors: true,
         },
       );
     }
   };
 
   return (
-    <Card className="bg-muted/20 border-2">
-      <CardContent className="flex flex-col items-center justify-center space-y-6 px-6 py-12 text-center">
+    <Card className="bg-muted/20 w-full mx-auto border-0 shadow-md">
+      <CardContent className="flex flex-col items-center justify-center space-y-6 px-6 py-30 text-center">
         <div className="bg-primary/10 rounded-full p-4">
           <Layers className="text-primary h-12 w-12" />
         </div>

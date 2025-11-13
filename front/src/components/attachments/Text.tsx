@@ -1,51 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
-import styled from "styled-components";
 import { ChevronUp } from "lucide-react";
 import axios from "axios";
 import TextMarkdown from "./TextMarkdown.tsx";
-
-const Placeholder = styled.div`
-  width: 100%;
-  padding-top: 56.25%; /* подложка под изображение, чтобы не прыгал layout */
-  background-color: #2d2d2d;
-  position: relative;
-`;
-
-const InnerText = styled.div`
-  background: rgba(0, 0, 0, 0.08);
-  border-radius: 8px;
-`;
-
-const InnerHeader = styled.div`
-  padding: 1.33em 1em;
-  border-bottom: 1px solid gray;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  cursor: pointer;
-  user-select: none;
-`;
-
-const InnerBody = styled.div<{ $maxHeightPx: number; $fade: boolean }>`
-  padding: 0 1.5rem;
-  overflow: hidden;
-  transition: max-height 0.3s ease;
-  max-height: ${(p) => `${p.$maxHeightPx}px`};
-  /* плавное затухание текста к фону внизу при обрезке */
-  -webkit-mask-image: ${(p) =>
-    p.$fade
-      ? "linear-gradient(to bottom, black 80%, transparent 100%)"
-      : "none"};
-  mask-image: ${(p) =>
-    p.$fade
-      ? "linear-gradient(to bottom, black 80%, transparent 100%)"
-      : "none"};
-`;
-
-const Arrow = styled(ChevronUp)<{ $expanded: boolean }>`
-  transition: transform 0.2s ease;
-  transform: rotate(${(p) => (p.$expanded ? "180deg" : "0deg")});
-`;
+import { cn } from "@/lib/utils";
 
 interface TextProps {
   id: string;
@@ -62,6 +19,9 @@ const Text: React.FC<TextProps> = ({ id, data }) => {
   const COLLAPSED_MAX = 320;
   const [maxHeight, setMaxHeight] = useState<number>(COLLAPSED_MAX);
   const [showFade, setShowFade] = useState<boolean>(true);
+  const fadeMask =
+    "linear-gradient(to bottom, rgba(0,0,0,1) 70%, rgba(0,0,0,0) 100%)";
+
   useEffect(() => {
     axios
       .get(
@@ -73,9 +33,13 @@ const Text: React.FC<TextProps> = ({ id, data }) => {
       })
       .catch(() => {
         setError(true);
+        setLoading(false);
       });
   }, [data.path]);
-  if (loading) return <Placeholder />;
+  if (loading)
+    return (
+      <div className="w-full rounded-lg bg-muted/40 pt-[56.25%] shadow-inner" />
+    );
   if (error)
     return (
       <div>
@@ -89,8 +53,9 @@ const Text: React.FC<TextProps> = ({ id, data }) => {
       </div>
     );
   return (
-    <InnerText>
-      <InnerHeader
+    <div className="rounded-md overflow-hidden border-2 border-border bg-card text-card-foreground shadow-sm">
+      <div
+        className="flex cursor-pointer select-none items-center justify-between gap-4 border-b border-border px-5 py-4"
         onClick={() => {
           setExpanded((prev) => {
             const next = !prev;
@@ -121,21 +86,36 @@ const Text: React.FC<TextProps> = ({ id, data }) => {
           });
         }}
       >
-        <h4 style={{ margin: 0 }}>
+        <h4 className="m-0 text-base font-semibold">
           Файл:{" "}
           <a
+            className="text-primary hover:underline"
             href={`${window.location.protocol}//${window.location.host}/files${data.path}`}
             target={"_blank"}
           >
             {id}
           </a>
         </h4>
-        <Arrow size={18} $expanded={expanded} />
-      </InnerHeader>
-      <InnerBody ref={bodyRef} $maxHeightPx={maxHeight} $fade={showFade}>
+        <ChevronUp
+          size={18}
+          className={cn(
+            "shrink-0 text-muted-foreground transition-transform duration-200",
+            expanded ? "rotate-180" : "rotate-0",
+          )}
+        />
+      </div>
+      <div
+        ref={bodyRef}
+        className={`px-6 py-4 text-sm transition-[max-height] duration-300 ease-in-out ${expanded ? "mb-6" : ""}`}
+        style={{
+          maxHeight: `${maxHeight}px`,
+          WebkitMaskImage: showFade ? fadeMask : "none",
+          maskImage: showFade ? fadeMask : "none",
+        }}
+      >
         <TextMarkdown>{text}</TextMarkdown>
-      </InnerBody>
-    </InnerText>
+      </div>
+    </div>
   );
 };
 

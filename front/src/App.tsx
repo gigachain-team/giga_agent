@@ -12,6 +12,7 @@ import { RagProvider } from "@/components/rag/providers/RAG.tsx";
 import RAGInterface from "@/components/rag";
 import { OAuthCallback } from "@/components/mcp/oauth-callback.tsx";
 import { UserInfoProvider } from "@/components/providers/user-info.tsx";
+import { Toaster } from "@/components/ui/sonner.tsx";
 
 const InnerApp: React.FC = () => {
   const { demoItemsLoaded } = useDemoItems();
@@ -84,6 +85,7 @@ const InnerApp: React.FC = () => {
 const App: React.FC = () => {
   return (
     <DemoItemsProvider>
+            <Toaster />
       <SettingsProvider>
         <RagProvider>
           <UserInfoProvider>

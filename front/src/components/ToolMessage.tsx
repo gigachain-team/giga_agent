@@ -26,6 +26,11 @@ interface AgentNode {
 }
 
 export const ToolExecuting = ({ messages, thread }: ToolExecProps) => {
+  // @ts-ignore
+  const name = messages[messages.length - 1]?.tool_calls?.length
+    ? // @ts-ignore
+      messages[messages.length - 1]?.tool_calls[0].name
+    : "none";
   const agentProgress: AgentNode | null = useMemo(() => {
     // @ts-ignore
     const uis = (thread.values.ui ?? []).filter(
@@ -37,7 +42,7 @@ export const ToolExecuting = ({ messages, thread }: ToolExecProps) => {
       let text;
       if (uis.at(-1).props.node_text) text = uis.at(-1).props.node_text;
       // @ts-ignore
-      const agent = PROGRESS_AGENTS[uis.at(-1).props.agent];
+      const agent = PROGRESS_AGENTS[name];
       if (agent) {
         text = agent[uis.at(-1).props.node];
       }
@@ -52,20 +57,15 @@ export const ToolExecuting = ({ messages, thread }: ToolExecProps) => {
     return null;
   }, [thread?.values.ui]);
   // @ts-ignore
-  const name = messages[messages.length - 1]?.tool_calls?.length
-    ? // @ts-ignore
-      messages[messages.length - 1]?.tool_calls[0].name
-    : "none";
-  // @ts-ignore
   const toolName = name in TOOL_MAP ? `: ${TOOL_MAP[name]} ` : "";
   const displayedRef = useRef<string>(""); // накапливаемый текст
   const [displayed, setDisplayed] = useState<string>("");
   const idxRef = useRef<number>(0);
 
   useEffect(() => {
-    if (!agentProgress?.text) return;
     displayedRef.current = "";
     setDisplayed("");
+    if (!agentProgress?.text) return;
     idxRef.current = 0;
     const words = agentProgress.text;
     let timer: NodeJS.Timeout;

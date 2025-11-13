@@ -16,8 +16,6 @@ import { useEffect, useRef, useState } from "react";
 import { ragEnabled } from "@/components/rag/utils.ts";
 import { Switch } from "@/components/ui/switch";
 
-const SIDEBAR_WIDTH = 250;
-
 interface SidebarProps {
   children: React.ReactNode;
   onNewChat: () => void;

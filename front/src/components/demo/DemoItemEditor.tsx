@@ -94,9 +94,8 @@ const DemoItemEditor: React.FC<DemoItemEditorProps> = ({ item, itemIdx }) => {
         <div className="flex items-center mr-1">
           <Switch
             checked={active}
-            onCheckedChange={(v) => setActive(!!v)}
+            onCheckedChange={(v) => setActive(v)}
             aria-label="Активно"
-            className="toggle-track"
           />
         </div>
 
@@ -183,7 +182,8 @@ const DemoItemEditor: React.FC<DemoItemEditorProps> = ({ item, itemIdx }) => {
                 onClick={() => {
                   if (it.kind === "existing") {
                     const f = it.data!;
-                    if (f.file_type === "image") setEnlargedImage("/files/" + f.path);
+                    if (f.file_type === "image")
+                      setEnlargedImage("/files/" + f.path);
                     else openLink("/files/" + f.path);
                   } else if (it.previewUrl) {
                     setEnlargedImage(it.previewUrl);
@@ -194,7 +194,9 @@ const DemoItemEditor: React.FC<DemoItemEditorProps> = ({ item, itemIdx }) => {
                   it.data?.file_type === "image" ? (
                     <ImagePreview src={"/files/" + it.data.path} />
                   ) : (
-                    <span>{it.name ?? it.data?.path.replace(/^files\//, "")}</span>
+                    <span>
+                      {it.name ?? it.data?.path.replace(/^files\//, "")}
+                    </span>
                   )
                 ) : it.previewUrl ? (
                   <ImagePreview src={it.previewUrl} />
