@@ -1,3 +1,4 @@
+import base64
 import json
 import uuid
 
@@ -55,7 +56,7 @@ class ExecuteTool(BaseTool):
                     RunUploadFile(
                         path=f"repl/{uuid.uuid4()}.png",
                         file_type="image",
-                        content=attachment["image/png"],
+                        content=base64.b64decode(attachment["image/png"]),
                     )
                 )
         if upload_files:

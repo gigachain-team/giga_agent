@@ -17,6 +17,7 @@ const Inner = styled.div`
   border: 3px solid firebrick;
   display: flex;
   align-items: center;
+  color: white;
 `;
 
 const RefreshButton = styled.div`

@@ -109,7 +109,6 @@ export const ToolExecuting = ({ messages, thread }: ToolExecProps) => {
             </span>
             {displayed && (
               <>
-                <br />
                 <span className="text-transparent bg-gradient-to-r from-muted-foreground/40 via-muted-foreground/70 to-muted-foreground/40 bg-clip-text animate-pulse">
                   {displayed}
                 </span>

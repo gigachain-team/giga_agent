@@ -79,9 +79,9 @@ function McpConnection({
       const isLocal = isLocalHostname || isPrivateLan;
       if (isLocal) return rawUrl;
       // Remote host → используем локальный прокси
-      const proxyUrl =
-        MCP_PROXY_URL ??
-        `${window.location.protocol}//${window.location.host}/proxy/`;
+      const proxyUrl = MCP_PROXY_URL
+        ? MCP_PROXY_URL
+        : `${window.location.protocol}//${window.location.host}/proxy/`;
       return `${proxyUrl}${rawUrl}`;
     } catch {
       // Если URL некорректный — возвращаем как есть
@@ -91,6 +91,7 @@ function McpConnection({
   const effectiveUrl = resolveUrlForTransport(server.url);
 
   const connection = useMcp({
+    enabled: server.enabled,
     url: effectiveUrl,
     debug: true,
     autoRetry: false,
@@ -99,6 +100,7 @@ function McpConnection({
     callbackUrl: window.location.origin + "/oauth/callback",
     clientName: "GigaAgent",
     autoReconnect: 3000,
+    timeout: 15000,
     customHeaders: server.authToken
       ? { Authorization: `Bearer ${server.authToken}` }
       : undefined,

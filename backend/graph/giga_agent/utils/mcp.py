@@ -9,7 +9,6 @@ from giga_agent.utils.jupyter import RunUploadFile, REPLUploader
 async def process_mcp_content(content_list: list, thread_id: str):
     upload_files = []
     text_parts = []
-    print(content_list)
     for content in content_list:
         if content.get("type") in ["image", "audio"]:
             mime_type = content["mimeType"]
