@@ -1,4 +1,4 @@
-# Под-агенты
+# Подагенты
 ## [Агент презентаций](backend/graph/giga_agent/agents/presentation_agent)
 Создает презентации с помощью [Reveal.js](https://revealjs.com/). Генерирует слайды / изображения к ним.
 
@@ -32,7 +32,7 @@
 
 ## Как создать своего под-агента в GigaAgent
 Желательно сделать его в виде графа на LangGraph. 
-Пример, реализации простых агентов можете посмотреть в [Агенте Мемове](meme_agent) или [Lean Canvas](lean_canvas). Прочитать подробнее про создание агента Lean Canvas можно [здесь](https://github.com/ai-forever/gigachain/blob/master/cookbook/lean_canvas/lean_canvas_agent.ipynb).
+Пример, реализации простых агентов можете посмотреть в [Агенте Мемов](meme_agent) или [Lean Canvas](lean_canvas). Прочитать подробнее про создание агента Lean Canvas можно [здесь](https://github.com/ai-forever/gigachain/blob/master/cookbook/lean_canvas/lean_canvas_agent.ipynb).
 
 После того как вы создадите граф, путь до него нужно положить в файл [langgraph.json](/backend/graph/langgraph.json) в ключ `"graph"`.
 Это позволить вызывать агента с помощью LangGraph API

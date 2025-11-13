@@ -1,24 +1,39 @@
-# GigaAgent
 
-GigaAgent — это агент-оркестратор, который может решать самые разные задачи.
-Например, он может [придумать мем](docs/examples/memes/chat.pdf), [описать бизнес-модель стартапа](docs/examples/lean_canvas/lean_canvas.pdf) или [создать лендинг](docs/examples/changelog_landing/changelog_landing.pdf).
+<h1 align="center">GigaAgent: универсальный AI-агент</h1>
+
+<picture>
+  <source media="(prefers-color-scheme: light)" srcset="docs/images/giga-agent_light_logo.png">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/giga-agent_dark_logo.png">
+  <img alt="Shows a black and red Giga Agent Logo in light color mode and a white and red in dark color mode." src="docs/images/giga-agent_dark_logo.png"  width="full">
+</picture>
+
+  <!-- Keep these links. Translations will automatically update with the README. -->
+[ [Русский](https://www.zdoc.app/ru/ai-forever/giga_agent) | 
+[中文](https://www.zdoc.app/zh/ai-forever/giga_agent) | 
+[English](https://www.zdoc.app/en/ai-forever/giga_agent) | 
+[Español](https://www.zdoc.app/es/ai-forever/giga_agent) ]
+<b>GigaAgent может решать самые разные задачи, используя более 30 встроенных инструментов и субагентов.</b>
+
+<hr>
+
+Например, он позволит вам работать с большими файлами через код (Excel-файл с десятками тысяч строк), [придумать мем](docs/examples/memes/chat.pdf), [описать бизнес-модель стартапа](docs/examples/lean_canvas/lean_canvas.pdf) или [создать лендинг](docs/examples/changelog_landing/changelog_landing.pdf).
 Для этого GigaAgent использует субагентов, REPL-среду для исполнения кода и сторонние сервисы.
 
 GigaAgent разработан в рамках проекта [GigaChain](https://github.com/ai-forever/gigachain) – открытого набора инструментов для разработки LLM-приложений и мультиагентных систем.
 
-> [!CAUTION]
+> [!IMPORTANT]
 > GigaAgent может писать и исполнять код без участия пользователя.
 > Учитывая раннюю стадию разработки проекта это может быть опасно.
 > Используйте агента с большой осторожностью.
 
 GigaAgent умеет:
 
-- работать с разными моделями, [доступными в LangChain](https://python.langchain.com/docs/integrations/chat/#all-chat-models): GigaChat, ChatGPT, Anthropic и другими;
-- исполнять код в чате с помощью в REPL-среды, подобной [блокнотам Jupyter](https://jupyter.org/);
-- обмениваться данными со сторонними сервисами: VK, GitHub, 2GIS и другими;
-- использовать инструменты для анализа данных, генерации изображений, создания презентаций и лендингов;
+- работать с разными моделями, [доступными в LangChain](https://python.langchain.com/docs/integrations/chat/#all-chat-models): GigaChat, ChatGPT, Anthropic и другими
+- исполнять код в чате с помощью в REPL-среды, подобной [блокнотам Jupyter](https://jupyter.org/)
+- обмениваться данными со сторонними сервисами: VK, GitHub, 2GIS и другими
+- использовать инструменты для анализа данных, генерации изображений, создания презентаций и лендингов
 - генерировать изображения с помощью разных провайдеров: GigaChat, FusionBrain, OpenAI;
-- работать локально или в облаке, с помощью Docker. 
+- работать локально или в облаке, с помощью Docker
 
 ## Демо
 
@@ -26,9 +41,9 @@ GigaAgent умеет:
 
 Примеры работы с GigaAgent в формате PDF:
 
-- [кластеризация комментариев в VK](docs/examples/cluster_comments/clusters_ru.pdf);
-- [анализ настроений комментариев в VK и вывод основных жалоб](docs/examples/sentiment_analysis/sentiment_analysis.pdf);
-- [создание сайта со списком изменений, созданным на основе последних закрытых PR](docs/examples/changelog_landing/changelog_landing.pdf).
+- [кластеризация комментариев в VK](docs/examples/cluster_comments/clusters_ru.pdf)
+- [анализ настроений комментариев в VK и вывод основных жалоб](docs/examples/sentiment_analysis/sentiment_analysis.pdf)
+- [создание сайта со списком изменений, созданным на основе последних закрытых PR](docs/examples/changelog_landing/changelog_landing.pdf)
 
 Примеры работы субагентов, а также подробная информация о них — в разделе [Субагенты](SUBAGENTS.md).
 Описание доступных инструментов и процесса создания новых инструментов можно найти в разделе [Инструменты в GigaAgent](TOOLS.md)
@@ -39,9 +54,9 @@ GigaAgent умеет:
 
 > [!TIP]
 > Смотрите также подробные инструкции по запуску GigaAgent на Cloud.ru:
-> * [руководство](CLOUD_RU_SETUP.md);
-> * [видео на RuTube](https://rutube.ru/video/c9a416a654723f0b1df23424bd3d9b4d/);
-> * [видео на YouTube](https://youtu.be/tyeXgCJ090Y?si=WcbITF3DiTo_aBUF).
+> * [Руководство по установке](CLOUD_RU_SETUP.md)
+> * [RuTube видео на русском](https://rutube.ru/video/c9a416a654723f0b1df23424bd3d9b4d/)
+> * [YouTube видео на русском](https://youtu.be/tyeXgCJ090Y?si=WcbITF3DiTo_aBUF)
 
 ### Запуск в Docker
 
@@ -63,7 +78,7 @@ GigaAgent умеет:
 
 1. В корне проекта заполните файл `.docker.env` с переменными окружения.
 
-   Примеры заполнения `.docker.env` — в папке [`env_examples`](env_examples/README.md).
+   Примеры заполнения `.docker.env` — в папке [`env_examples`](env_examples/README.md)
 
 2. Соберите Docker-образ сервера LangGraph:
    
@@ -76,22 +91,22 @@ GigaAgent умеет:
    docker compose up -d
    ```
 
-   Для запуска контейнера с LangGraph-сервером может понадобиться API-ключ для доступа к LangSmith.
+   Для запуска контейнера с LangGraph-сервером может понадобиться API-ключ для доступа к LangSmith
 
-Приложение будет доступно в браузере по адресу `http://localhost:8502`.
+Приложение будет доступно в браузере по адресу `http://localhost:8502`
 
 Чтобы применить изменения после обновления репозитория:
 
-1. Остановите приложение.
-2. Повторно выполните шаги инструкции.
+1. Остановите приложение
+2. Повторно выполните шаги инструкции
 
 ### Локальный запуск отдельных компонентов
 
 Перед запуском:
 
-* Убедитесь, что у вас свободны порты 2024, 8811, 9090, 9092, 3000.
-* [Установите менеджер пакетов uv](https://docs.astral.sh/uv/getting-started/installation/).
-* [Установите менеджер пакетов npm](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm).
+* Убедитесь, что у вас свободны порты 2024, 8811, 9090, 9092, 3000
+* [Установите менеджер пакетов uv](https://docs.astral.sh/uv/getting-started/installation/)
+* [Установите менеджер пакетов npm](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm)
 * Скопируйте мок-данные в папку `files` в корне проекта:
 
   ```sh
@@ -100,9 +115,9 @@ GigaAgent умеет:
 
 Чтобы локально запустить компоненты GigaAgent: 
 
-1. В корне проекта заполните файл `.env` с переменными окружения.
+1. В корне проекта заполните файл `.env` с переменными окружения
 
-   Примеры заполнения `.env` — в папке [`env_examples`](env_examples/README.md).
+   Примеры заполнения `.env` — в папке [`env_examples`](env_examples/README.md)
 
 2. Запустите REPL-среду и Upload Server:
 
@@ -130,13 +145,13 @@ GigaAgent умеет:
    make dev
    ```
 
-Приложение будет доступно в браузере.
+Приложение будет доступно в браузере
 
 ## Настройка параметров
 
 ### Переменные окружения
 
-Переменные окружения для работы GigaAgent задаются в файлах `.env` или `.docker.env ` в корне проекта.
+Переменные окружения для работы GigaAgent задаются в файлах `.env` или `.docker.env` в корне проекта.
 В папке [env_examples](env_examples/README.md) вы найдете шаблоны файлов с переменными окружения, для работы с разными LLM-сервисами.
 
 Обратите внимание на переменные `REPL_FROM_MESSAGE` и `MAIN_GIGACHAT_*`.
@@ -268,11 +283,11 @@ MCP_CONFIG = {
 
 <img src="docs/images/diagram.png" width=500>
 
-- **GigaAgent** — основной агент;
-- **SubAgents** — субагенты, выполняющие специфические задачи: создание презентаций, создание лендингов и другие;
-- **REPL** — отдельный контейнер с REPL-средой для выполнения кода, сгенерированного моделью;
-- **ToolServer** — сервер, для запуска подключенных к моделям инструментов или выполнения закрытого код / кода завязанный на скрытых переменных окружения, который не доступен пользователю в REPL-среде.
-- **LLM Tools** — инструменты (функции) для моделей: поиск, работа с данными ВК, работа с github и другие;
+- **GigaAgent** — основной агент
+- **SubAgents** — субагенты, выполняющие специфические задачи: создание презентаций, создание лендингов и другие
+- **REPL** — отдельный контейнер с REPL-средой для выполнения кода, сгенерированного моделью
+- **ToolServer** — сервер, для запуска подключенных к моделям инструментов или выполнения закрытого код / кода завязанный на скрытых переменных окружения, который не доступен пользователю в REPL-среде
+- **LLM Tools** — инструменты (функции) для моделей: поиск, работа с данными ВК, работа с github и другие
 - **REPL Tools** — инструменты REPL: predict_sentiments, get_embeddings, summarize, инструменты моделей. Эти методы завязаны на API моделей и могут быть вызваны из REPL-среды. Они позволяют предотвратить доступ к API-ключам в REPL-среде.
 
 ## Планы
@@ -280,8 +295,8 @@ MCP_CONFIG = {
 У нас много планов, но мы также будем рады вашим PR и Issues!
 
 - [ ] Перевод документации / примеров
-- [ ] Оптимизировать генерацию изображений в агенте презентаций, лендингов
 - [ ] Поддержка MCP на уровне субагентов
+- [ ] Оптимизировать генерацию изображений в агенте презентаций, лендингов
 - [ ] Добавить историю чатов
 - [ ] Перенести настройку агента с ENV переменных в единый понятный config файл
 - [ ] Вынести наименование агентов и узлов их выполнения в бэкенд из файла [config.ts](front/src/config.ts)
