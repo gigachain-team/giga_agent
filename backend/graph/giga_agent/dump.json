@@ -424,7 +424,7 @@
         }
     },
     {
-        "active": true,
+        "active": false,
         "steps": 10,
         "sorting": 37,
         "id": "cb9e5e3e-a391-48c1-af77-97bce576da4f",
@@ -471,7 +471,7 @@
         "active": true,
         "steps": 20,
         "sorting": 40,
-        "id": "144b488d-8f98-43b8-9f06-7f607d6b54cc",
+        "id": "2cb63f18-bc4c-4207-83da-6f33391a4cf2",
         "json_data": {
             "message": "Расскажи в чем преимущество GigaAgent по сравнению с конкурентами. Выведи поинты чем он лучше и таблицу сравнения"
         }
