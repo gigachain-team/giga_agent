@@ -264,7 +264,7 @@ async def upload_image(file: UploadFile = File(...)):
 async def list_threads():
     """Получить список всех диалогов с заголовками, отсортированных по дате создания."""
     client = get_client()
-    threads = await client.threads.list(limit=100)
+    threads = await client.threads.search(limit=100)
     result = []
     for thread in threads:
         thread_id = thread.get("thread_id")
