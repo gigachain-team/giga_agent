@@ -23,6 +23,32 @@ from giga_agent.utils.env import load_project_env
 from giga_agent.utils.llm import is_llm_image_inline
 
 from giga_agent.config import llm
+from giga_agent.utils.llm import load_llm
+
+
+TITLE_GENERATION_PROMPT = """Придумай короткий заголовок (не более 5-7 слов) для диалога на основе первого сообщения пользователя.
+Заголовок должен отражать суть запроса. Не используй кавычки. Отвечай только заголовком.
+
+Сообщение пользователя: {message}
+
+Заголовок:"""
+
+
+async def generate_thread_title(first_message: str) -> str:
+    """Генерирует заголовок для диалога на основе первого сообщения."""
+    if not first_message or not first_message.strip():
+        return "Новый диалог"
+    try:
+        title_llm = load_llm()
+        response = await title_llm.ainvoke(
+            TITLE_GENERATION_PROMPT.format(message=first_message[:500])
+        )
+        title = response.content.strip()
+        if len(title) > 100:
+            title = title[:97] + "..."
+        return title if title else "Новый диалог"
+    except Exception:
+        return "Новый диалог"
 
 
 # --- Модель данных ---
@@ -231,3 +257,60 @@ async def upload_image(file: UploadFile = File(...)):
         ttl=None,
     )
     return {"id": uploaded_id}
+
+
+# --- Threads API ---
+@app.get("/threads/")
+async def list_threads():
+    """Получить список всех диалогов с заголовками, отсортированных по дате создания."""
+    client = get_client()
+    threads = await client.threads.list(limit=100)
+    result = []
+    for thread in threads:
+        thread_id = thread.get("thread_id")
+        metadata = thread.get("metadata", {})
+        created_at = thread.get("created_at")
+        title = metadata.get("title")
+        if not title:
+            try:
+                state = await client.threads.get_state(thread_id)
+                messages = state.get("values", {}).get("messages", [])
+                first_human_message = None
+                for msg in messages:
+                    if msg.get("type") == "human":
+                        content = msg.get("content", "")
+                        if isinstance(content, list):
+                            text_parts = [
+                                p.get("text", "")
+                                for p in content
+                                if isinstance(p, dict) and p.get("type") == "text"
+                            ]
+                            content = " ".join(text_parts)
+                        first_human_message = content
+                        break
+                if first_human_message:
+                    title = await generate_thread_title(first_human_message)
+                    await client.threads.update(thread_id, metadata={"title": title})
+                else:
+                    title = "Новый диалог"
+            except Exception:
+                title = "Новый диалог"
+        result.append(
+            {
+                "thread_id": thread_id,
+                "title": title,
+                "created_at": created_at,
+            }
+        )
+    result.sort(key=lambda x: x.get("created_at") or "", reverse=True)
+    return result
+
+
+@app.delete("/threads/{thread_id}/", status_code=204)
+async def delete_thread(thread_id: str):
+    """Удалить диалог по ID."""
+    client = get_client()
+    try:
+        await client.threads.delete(thread_id)
+    except Exception as e:
+        raise HTTPException(404, f"Thread not found: {e}")

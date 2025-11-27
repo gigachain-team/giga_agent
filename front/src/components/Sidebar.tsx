@@ -1,18 +1,27 @@
-import React, { useState } from "react";
-import styled, { keyframes, css } from "styled-components";
-import { useNavigate } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import styled from "styled-components";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   Check,
   ChevronRight,
   Plus,
   Printer,
   Settings as SettingsIcon,
+  Trash2,
+  MessageSquare,
 } from "lucide-react";
+import axios from "axios";
 // @ts-ignore
 import LogoImage from "../assets/logo.png";
 // @ts-ignore
 import QRImage from "../assets/qr.png";
 import { useSettings } from "./Settings.tsx";
+
+interface ThreadItem {
+  thread_id: string;
+  title: string;
+  created_at: string;
+}
 
 const SIDEBAR_WIDTH = 250;
 
@@ -170,6 +179,69 @@ const StyledCheckbox = styled.div<{ checked: boolean }>`
   }
 `;
 
+const ThreadListContainer = styled.div`
+  margin-top: 16px;
+  flex: 1;
+  overflow-y: auto;
+  max-height: calc(100vh - 400px);
+`;
+
+const ThreadListTitle = styled.div`
+  font-size: 12px;
+  color: #888;
+  padding: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+`;
+
+const ThreadItem = styled.div<{ isActive: boolean }>`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px;
+  font-size: 13px;
+  color: #fff;
+  border-radius: 8px;
+  cursor: pointer;
+  background-color: ${(p) => (p.isActive ? "rgba(255, 255, 255, 0.15)" : "transparent")};
+  &:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+`;
+
+const ThreadTitle = styled.div`
+  display: flex;
+  align-items: center;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  svg {
+    margin-right: 8px;
+    flex-shrink: 0;
+  }
+`;
+
+const DeleteButton = styled.button`
+  background: none;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.2s, color 0.2s;
+  ${ThreadItem}:hover & {
+    opacity: 1;
+  }
+  &:hover {
+    color: #ff6b6b;
+  }
+`;
+
 interface SidebarProps {
   children: React.ReactNode;
   onNewChat: () => void;
@@ -177,7 +249,24 @@ interface SidebarProps {
 
 const SidebarComponent = ({ children, onNewChat }: SidebarProps) => {
   const navigate = useNavigate();
+  const { threadId } = useParams<{ threadId?: string }>();
   const { settings, setSettings } = useSettings();
+  const [threads, setThreads] = useState<ThreadItem[]>([]);
+
+  const fetchThreads = async () => {
+    try {
+      const response = await axios.get("/graph/threads/");
+      setThreads(response.data);
+    } catch (error) {
+      console.error("Failed to fetch threads:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchThreads();
+    const interval = setInterval(fetchThreads, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const toggle = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -201,6 +290,25 @@ const SidebarComponent = ({ children, onNewChat }: SidebarProps) => {
   const handleNewChat = () => {
     navigate("/");
     onNewChat();
+    fetchThreads();
+  };
+
+  const handleThreadClick = (id: string) => {
+    navigate(`/threads/${id}`);
+  };
+
+  const handleDeleteThread = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    try {
+      await axios.delete(`/graph/threads/${id}/`);
+      setThreads(threads.filter((t) => t.thread_id !== id));
+      if (threadId === id) {
+        navigate("/");
+        onNewChat();
+      }
+    } catch (error) {
+      console.error("Failed to delete thread:", error);
+    }
   };
 
   return (
@@ -230,6 +338,27 @@ const SidebarComponent = ({ children, onNewChat }: SidebarProps) => {
           </StyledCheckbox>
           <span style={{ marginLeft: 8 }}>Auto Approve</span>
         </CheckboxContainer>
+        <ThreadListContainer>
+          <ThreadListTitle>История диалогов</ThreadListTitle>
+          {threads.map((thread) => (
+            <ThreadItem
+              key={thread.thread_id}
+              isActive={threadId === thread.thread_id}
+              onClick={() => handleThreadClick(thread.thread_id)}
+            >
+              <ThreadTitle>
+                <MessageSquare size={16} />
+                <span>{thread.title}</span>
+              </ThreadTitle>
+              <DeleteButton
+                onClick={(e) => handleDeleteThread(e, thread.thread_id)}
+                title="Удалить диалог"
+              >
+                <Trash2 size={14} />
+              </DeleteButton>
+            </ThreadItem>
+          ))}
+        </ThreadListContainer>
         <QR />
       </Sidebar>
 
