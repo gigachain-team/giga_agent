@@ -39,6 +39,7 @@ async def generate_presentation(
 ):
     """
     Этот инструмент создает презентации. В task передай задачу для создания презентации.
+    Если ты хочешь передать график/изображение в task, то передавай их в формате `attachment:<путь до вложения>`
 
     Args:
         presentation_task: Описание презентации
@@ -75,12 +76,9 @@ async def generate_presentation(
                 },
             )
     code = state["presentation_html"]
-    for name, value in state.get("images_base_64", {}).items():
-        code = code.replace(name, f"data:image/jpeg;base64, {value}")
-    file_id = str(uuid.uuid4())
     return {
-        "message": f'В результате выполнения была сгенерирована HTML страница {file_id}. Покажи её пользователю через "![HTML-страница](html:{file_id})" и напиши куда двигаться пользователю дальше',
-        "giga_attachments": [{"type": "text/html", "file_id": file_id, "data": code}],
+        "message": f'В результате выполнения была сгенерирована HTML страница {code["path"]}. Покажи её пользователю через "![alt-описание](attachment:{code["path"]})" и напиши куда двигаться пользователю дальше',
+        "giga_attachments": [code],
     }
 
 

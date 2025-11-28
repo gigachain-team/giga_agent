@@ -20,6 +20,7 @@ from giga_agent.agents.gis_agent.utils.gis_client import Location, Attraction, P
 __location__ = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
 
 from giga_agent.utils.env import load_project_env
+from giga_agent.utils.jupyter import REPLUploader, RunUploadFile
 
 load_project_env()
 
@@ -86,9 +87,10 @@ async def city_explore(city: str):
     Args:
         city: Полное название города
     """
+    thread_id = str(uuid.uuid4())
     conf = {
         "configurable": {
-            "thread_id": str(uuid.uuid4()),
+            "thread_id": thread_id,
             "skip_search": False if os.getenv("TAVILY_API_KEY") else True,
         }
     }
@@ -166,12 +168,21 @@ async def city_explore(city: str):
         + "\n\n".join(food_message)
     )
 
+    uploader = REPLUploader()
+    upload_files = [
+        RunUploadFile(
+            path=f"map.html",
+            file_type="html",
+            content=new_map_html,
+        )
+    ]
+    upload_resp = await uploader.upload_run_files(upload_files, thread_id)
+    uploaded = upload_resp[0]
+
     return {
         "data": data_message,
-        "message": f'В результате была получена информация о городе и страница с картой {file_id}. Напиши пользователю историю города, пару фактов о нем. Покажи карту пользователю через "![Карта](html:{file_id})". Приложи ВСЮ информацию о достопримечательностях, отелях, и где покушать. Также обязательно прикладывай изображения к отелям и кафе, если они есть в конкретном месте!, в формате ![alt-текст](url)',
-        "giga_attachments": [
-            {"type": "text/html", "file_id": file_id, "data": new_map_html}
-        ],
+        "message": f'В результате была получена информация о городе и страница с картой {uploaded["path"]}. Покажи её пользователю через "![alt-описание](attachment:{uploaded["path"]})".',
+        "giga_attachments": upload_resp,
     }
 
 

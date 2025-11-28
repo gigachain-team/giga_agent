@@ -2,6 +2,8 @@ import asyncio
 import json
 import uuid
 
+import os
+import re
 from langchain_core.messages import HumanMessage, ToolMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables import (
@@ -13,6 +15,7 @@ from langchain_core.runnables import (
 from giga_agent.agents.landing_agent.config import LandingState, llm
 from giga_agent.agents.landing_agent.tools import done
 from giga_agent.agents.landing_agent.prompts.ru import CODER_PROMPT
+from giga_agent.utils.jupyter import REPLUploader, RunUploadFile
 from giga_agent.utils.lang import LANG
 from giga_agent.output_parsers.html_parser import HTMLParser
 
@@ -94,6 +97,34 @@ async def coder_node(state: LandingState, config: RunnableConfig):
     )
     if config["configurable"].get("print_messages", False):
         resp["message"].pretty_print()
+    html = resp["html"]
+    for image in state["images"]:
+        html = html.replace(
+            image["name"],
+            f'/files/runs/{config["configurable"]["thread_id"]}/{image["name"]}',
+        )
+    uploader = REPLUploader()
+    html_counter = ""
+    if state.get("html"):
+        prev_path = state["html"].get("path")
+        if prev_path:
+            filename = os.path.basename(prev_path)
+            match = re.match(r"^(?P<name>.+?)(?:_(?P<idx>\d+))?\.html$", filename)
+            if match:
+                idx = match.group("idx")
+                next_idx = int(idx) + 1 if idx else 2
+                html_counter = f"_{next_idx}"
+    upload_files = [
+        RunUploadFile(
+            path=f"page{html_counter}.html",
+            file_type="html",
+            content=html,
+        )
+    ]
+    upload_resp = await uploader.upload_run_files(
+        upload_files, config["configurable"]["thread_id"]
+    )
+    uploaded = upload_resp[0]
     action = state["agent_messages"][-1].tool_calls[0]
     return {
         "coder_messages": [new_message, resp["message"]],
@@ -108,7 +139,7 @@ async def coder_node(state: LandingState, config: RunnableConfig):
             ),
             artifact=resp["html"],
         ),
-        "html": resp["html"],
+        "html": uploaded,
         "coder_plan_loaded": True,
     }
 

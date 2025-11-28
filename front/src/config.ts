@@ -24,6 +24,8 @@ export const TOOL_MAP = {
   get_urls: "Скачивание ссылок",
   city_explore: "Исследователь города",
   gen_image: "Генерация изображения",
+  browser_task: "Агент Б.Раузер",
+  get_documents: "Поиск по базе знаний",
   researcher_agent: "Исследовательский агент",
 };
 
@@ -76,5 +78,7 @@ export const PROGRESS_AGENTS = {
     critique_agent: "Анализирует результаты",
   },
 };
+
+export const BROWSER_USE_NAME = "browser_task";
 
 export const TIME_TO_NEXT_TASK = 15;

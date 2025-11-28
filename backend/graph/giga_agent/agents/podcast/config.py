@@ -4,6 +4,7 @@ from langchain_core.messages import AnyMessage
 
 from giga_agent.agents.podcast.schema import ShortDialogue, MediumDialogue
 from giga_agent.utils.llm import load_llm
+from giga_agent.utils.types import UploadedFile
 
 podcast_llm = load_llm().with_config(tags=["nostream"])
 
@@ -21,5 +22,5 @@ class PodcastState(TypedDict):
     question: str
     tone: Literal["entertaining", "formal"]
     length: Literal["short", "medium"]
-    audio: str
+    audio: UploadedFile
     transcript: str

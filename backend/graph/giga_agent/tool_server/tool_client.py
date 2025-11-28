@@ -1,14 +1,10 @@
-import asyncio
 import functools
 import json
 import os
-from typing import Any
 
 import aiohttp
 import requests
-from pydantic import BaseModel
-
-from giga_agent.utils.jupyter import JupyterClient
+from pydantic import BaseModel, Field
 
 
 class ToolExecuteException(Exception):
@@ -20,17 +16,25 @@ class ToolNotFoundException(Exception):
 
 
 class ToolClient(BaseModel):
-    base_url: str
-    state: Any = {}
+    base_url: str = Field(
+        default_factory=lambda: os.getenv("TOOL_CLIENT_API", "http://127.0.0.1:8811")
+    )
+    thread_id: str = ""
+    checkpoint_id: str = ""
 
-    def set_state(self, state):
-        self.state = state
+    def set_state_data(self, thread_id: str, checkpoint_id: str):
+        self.thread_id = thread_id
+        self.checkpoint_id = checkpoint_id
 
     async def aexecute(self, tool_name, kwargs):
         async with aiohttp.ClientSession() as session:
             async with session.post(
                 f"{self.base_url}/{tool_name}",
-                json={"kwargs": kwargs, "state": self.state},
+                json={
+                    "kwargs": kwargs,
+                    "thread_id": self.thread_id,
+                    "checkpoint_id": self.checkpoint_id,
+                },
                 timeout=600.0,
             ) as res:
                 if res.status == 200:
@@ -49,7 +53,13 @@ class ToolClient(BaseModel):
         url = f"{self.base_url}/{tool_name}"
         try:
             response = requests.post(
-                url, json={"kwargs": kwargs, "state": self.state}, timeout=600.0
+                url,
+                json={
+                    "kwargs": kwargs,
+                    "thread_id": self.thread_id,
+                    "checkpoint_id": self.checkpoint_id,
+                },
+                timeout=600.0,
             )
         except requests.RequestException as e:
             # Ошибка сети или таймаут
@@ -99,17 +109,26 @@ class ToolClient(BaseModel):
 
 
 if __name__ == "__main__":
-    tool_client = ToolClient(base_url="http://127.0.0.1:8811")
+    from langgraph_sdk import get_sync_client
 
-    @tool_client.call_tool
-    def predict_sentiments(**kwargs):
-        pass
-
-    async def main():
-        # client = JupyterClient(
-        #     base_url=os.getenv("JUPYTER_CLIENT_API", "http://127.0.0.1:9090")
-        # )
-        # tool_client.set_state({"kernel_id": (await client.start_kernel())["id"]})
-        print(predict_sentiments(texts=["крутой товар"]))
-
-    asyncio.run(main())
+    client = get_sync_client(url="http://localhost:8502/graph/")
+    print(
+        client.threads.get_state(
+            thread_id="51ebef72-5a32-47ad-96c3-88d89c3cfb6d",
+            checkpoint_id="1f0a4fd7-8074-6983-8001-70b29856dfc5",
+        )
+    )
+    # tool_client = ToolClient(base_url="http://127.0.0.1:8811")
+    #
+    # @tool_client.call_tool
+    # def predict_sentiments(**kwargs):
+    #     pass
+    #
+    # async def main():
+    #     # client = JupyterClient(
+    #     #     base_url=os.getenv("JUPYTER_CLIENT_API", "http://127.0.0.1:9090")
+    #     # )
+    #     # tool_client.set_state({"kernel_id": (await client.start_kernel())["id"]})
+    #     print(predict_sentiments(texts=["крутой товар"]))
+    #
+    # asyncio.run(main())

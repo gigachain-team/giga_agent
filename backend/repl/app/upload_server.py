@@ -1,17 +1,19 @@
 import io
 import mimetypes
 import os
+import urllib.parse
 import uuid
+import plotly
 from pathlib import Path
-import requests
+from typing import List, Optional
 
-from fastapi import FastAPI, HTTPException, File, UploadFile, Response
+from fastapi import FastAPI, HTTPException, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from langchain_gigachat import GigaChat
 from dotenv import load_dotenv
 
-from PIL import Image, ImageOps
+from langgraph_sdk import get_client
+
 
 load_dotenv("../../.env")
 
@@ -28,19 +30,11 @@ app.add_middleware(
 )
 
 FILES_DIR = os.environ.get("FILES_DIR", "files")
+RUNS_DIR = os.environ.get("RUNS_DIR", "runs")
 os.makedirs(FILES_DIR, exist_ok=True)
+os.makedirs(RUNS_DIR, exist_ok=True)
 
-llm = GigaChat(
-    profanity_check=False,
-    verify_ssl_certs=False,
-    timeout=100000,
-    max_tokens=32000,
-    user=os.getenv("MAIN_GIGACHAT_USER"),
-    password=os.getenv("MAIN_GIGACHAT_PASSWORD"),
-    credentials=os.getenv("MAIN_GIGACHAT_CREDENTIALS"),
-    scope=os.getenv("MAIN_GIGACHAT_SCOPE"),
-    base_url=os.getenv("MAIN_GIGACHAT_BASE_URL"),
-)
+FILE_TYPES = {"image", "plotly_graph", "html", "text", "audio", "other"}
 
 if not Path(FILES_DIR).exists():
     Path(FILES_DIR).mkdir(parents=True, exist_ok=True)
@@ -57,58 +51,195 @@ def uniquify(path):
     return path
 
 
-@app.options("/upload")
-def upload_options():
-    return Response(
-        status_code=204,
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "POST,OPTIONS",
-            "Access-Control-Allow-Headers": "*",
-        },
-    )
+def _safe_join(base: str, relative: str) -> str:
+    relative = (relative or "").replace("\\", "/").lstrip("/")
+    candidate = os.path.normpath(os.path.join(base, relative))
+    base_abs = os.path.abspath(base)
+    cand_abs = os.path.abspath(candidate)
+    if not (cand_abs == base_abs or cand_abs.startswith(base_abs + os.sep)):
+        raise HTTPException(status_code=400, detail="Недопустимый путь")
+    return candidate
 
 
-@app.post("/upload")
-def upload(file: UploadFile = File(...)):
+def _detect_image_mime(path: str) -> Optional[str]:
     try:
-        path = uniquify(os.path.join(FILES_DIR, file.filename))
+        from PIL import Image
+
+        with Image.open(path) as img:
+            img.verify()
+            mime = Image.MIME.get(img.format)
+            return mime
+    except Exception:
+        return None
+
+
+async def upload_image(path: str) -> dict:
+    from PIL import Image, ImageOps
+    import httpx
+
+    api_url_base = os.getenv("GIGA_AGENT_API", "").rstrip("/")
+    if not api_url_base:
+        raise RuntimeError("GIGA_AGENT_API is not set")
+    url = f"{api_url_base}/upload/image/"
+
+    # Определяем, является ли исходный файл JPEG
+    is_jpeg = False
+    try:
+        with Image.open(path) as im:
+            is_jpeg = im.format == "JPEG"
+    except Exception:
+        is_jpeg = path.lower().endswith((".jpg", ".jpeg"))
+
+    if is_jpeg:
+        # Если уже JPEG — отправляем как есть, без перекодирования
+        async with httpx.AsyncClient(timeout=60) as client:
+            with open(path, "rb") as f:
+                response = await client.post(
+                    url,
+                    files={
+                        "file": (
+                            os.path.basename(path),
+                            f,
+                            "image/jpeg",
+                        )
+                    },
+                )
+        response.raise_for_status()
+        return response.json()
+
+    # Иначе конвертируем в JPEG и уменьшаем при необходимости
+    image = ImageOps.exif_transpose(Image.open(path))
+    max_side = 1024
+    if max(image.size) > max_side:
+        image.thumbnail((max_side, max_side), Image.LANCZOS)
+
+    buf = io.BytesIO()
+    image.convert("RGB").save(
+        buf,
+        format="JPEG",
+        quality=85,
+        optimize=True,
+        progressive=True,
+    )
+    buf.seek(0)
+
+    async with httpx.AsyncClient(timeout=60) as client:
+        response = await client.post(
+            url,
+            files={
+                "file": (
+                    f"{uuid.uuid4()}.jpg",
+                    buf,
+                    "image/jpeg",
+                )
+            },
+        )
+    response.raise_for_status()
+    return response.json()
+
+
+@app.post("/upload/run")
+async def upload_run(
+    files: List[UploadFile] = File(...),
+    paths: Optional[List[str]] = Form(default=None),
+    types: List[str] = Form(...),
+    thread_id: str = Form(...),
+):
+    saved = []
+    # Валидация соответствия размеров списков
+    if not types or len(types) != len(files):
+        raise HTTPException(
+            status_code=400,
+            detail="Количество элементов 'types' должно совпадать с количеством 'files'",
+        )
+    try:
+        for idx, file in enumerate(files):
+            if paths and idx < len(paths) and paths[idx]:
+                rel = paths[idx]
+            else:
+                rel = file.filename
+
+            rel = urllib.parse.unquote(rel)
+            dest_path = _safe_join(_safe_join(RUNS_DIR, thread_id), rel)
+            os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+
+            with open(dest_path, "wb") as out:
+                while chunk := await file.read(1024 * 1024):
+                    out.write(chunk)
+
+            # Определяем тип файла на основе обязательного параметра
+            t = (types[idx] or "").strip().lower()
+            if t not in FILE_TYPES:
+                raise HTTPException(status_code=400, detail=f"Недопустимый тип: {t}")
+            file_type = t
+            image_id = None
+            image_path = None
+            if file_type == "image":
+                data = await upload_image(dest_path)
+                image_id = data["id"]
+                image_path = dest_path
+            elif file_type == "plotly_graph":
+                with open(dest_path, "r") as f:
+                    plot_json = f.read()
+                plot = plotly.io.from_json(plot_json)
+                img = plotly.io.to_image(plot, format="jpg")
+                img_path = ".".join(dest_path.split(".")[:-1]) + ".jpg"
+                with open(img_path, "wb") as f:
+                    f.write(img)
+                data = await upload_image(img_path)
+                image_id = data["id"]
+                image_path = img_path
+            file_metadata = {
+                "path": dest_path,
+                "size": os.path.getsize(dest_path),
+                "file_type": file_type,
+                "image_id": image_id,
+                "image_path": image_path,
+            }
+            saved.append(file_metadata)
+            client = get_client(
+                url=os.getenv("LANGGRAPH_API_URL", "http://0.0.0.0:2024")
+            )
+            await client.store.put_item(
+                ("attachments",),
+                dest_path,
+                file_metadata,
+                ttl=None,
+                index=False,
+            )
+    finally:
+        for f in files:
+            await f.close()
+    return {"saved": saved}
+
+
+@app.post("/upload/")
+async def upload(file: UploadFile = File(...)):
+    try:
+        path = uniquify(_safe_join(FILES_DIR, file.filename))
         with open(path, "wb") as f:
             while contents := file.file.read(1024 * 1024):
                 f.write(contents)
         if file.content_type.startswith("image/"):
-            image = ImageOps.exif_transpose(Image.open(path))
-            max_side = 1024
-            if max(image.size) > max_side:
-                image.thumbnail((max_side, max_side), Image.LANCZOS)
-
-            buf = io.BytesIO()
-            image.convert("RGB").save(
-                buf,
-                format="JPEG",
-                quality=85,
-                optimize=True,
-                progressive=True,
+            data = await upload_image(path)
+            file_metadata = {
+                "path": path,
+                "size": os.path.getsize(path),
+                "file_type": "image",
+                "image_id": data.get("id"),
+                "image_path": path,
+            }
+            client = get_client(
+                url=os.getenv("LANGGRAPH_API_URL", "http://0.0.0.0:2024")
             )
-            buf.seek(0)
-            api_url_base = os.getenv("LANGGRAPH_API_URL", "").rstrip("/")
-            if not api_url_base:
-                raise RuntimeError("LANGGRAPH_API_URL is not set")
-            url = f"{api_url_base}/upload/image/"
-            response = requests.post(
-                url,
-                files={
-                    "file": (
-                        f"{uuid.uuid4()}.jpg",
-                        buf,
-                        "image/jpeg",
-                    )
-                },
-                timeout=60,
+            await client.store.put_item(
+                ("attachments",),
+                path,
+                file_metadata,
+                ttl=None,
+                index=False,
             )
-            response.raise_for_status()
-            data = response.json()
-            return {"path": path, "file_id": data.get("id")}
+            return file_metadata
     except Exception as e:
         raise e
     finally:

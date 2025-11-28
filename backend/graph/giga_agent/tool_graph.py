@@ -15,8 +15,8 @@ from langchain_core.messages import (
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langgraph.graph import StateGraph
 from langgraph.prebuilt.tool_node import _handle_tool_error, ToolNode
-from langgraph.store.base import BaseStore
 from langgraph.types import interrupt
+from langgraph.config import RunnableConfig
 
 from giga_agent.config import (
     AgentState,
@@ -24,15 +24,19 @@ from giga_agent.config import (
     SERVICE_TOOLS,
     AGENT_MAP,
     load_llm,
+    TOOLS_AGENT_CHECKS,
+    run_checks,
 )
 from giga_agent.prompts.few_shots import FEW_SHOTS_ORIGINAL, FEW_SHOTS_UPDATED
 from giga_agent.prompts.main_prompt import SYSTEM_PROMPT
 from giga_agent.repl_tools.utils import describe_repl_tool
 from giga_agent.tool_server.tool_client import ToolClient
+from giga_agent.tool_server.utils import transform_tool
+from giga_agent.tools.rag import get_rag_info
 from giga_agent.utils.env import load_project_env
-from giga_agent.utils.jupyter import JupyterClient
+from giga_agent.utils.jupyter import JupyterClient, prepend_code
 from giga_agent.utils.lang import LANG
-from giga_agent.utils.python import prepend_code
+from giga_agent.utils.mcp import process_mcp_content
 
 load_project_env()
 
@@ -70,7 +74,10 @@ def generate_user_info(state: AgentState):
     lang = ""
     if not LANG.startswith("ru"):
         lang = f"\nВыбранный язык пользователя: {LANG}\n"
-    return f"<user_info>\nТекущая дата: {datetime.today().strftime('%d.%m.%Y %H:%M')}{lang}</user_info>"
+    instructions = ""
+    if not state["messages"]:
+        instructions = state.get("instructions", "")
+    return f"<user_info>\nТекущая дата: {datetime.today().strftime('%d.%m.%Y %H:%M')}{lang}{instructions}</user_info>"
 
 
 def get_code_arg(message):
@@ -80,37 +87,28 @@ def get_code_arg(message):
         return "\n".join(matches).strip()
 
 
-client = JupyterClient(
-    base_url=os.getenv("JUPYTER_CLIENT_API", "http://127.0.0.1:9090")
-)
+client = JupyterClient()
 
 
-async def agent(state: AgentState):
-    tool_client = ToolClient(
-        base_url=os.getenv("TOOL_CLIENT_API", "http://127.0.0.1:8811")
-    )
+async def before_agent(state: AgentState):
+    tool_client = ToolClient()
     kernel_id = state.get("kernel_id")
     tools = state.get("tools")
-    file_ids = []
     if not kernel_id:
         kernel_id = (await client.start_kernel())["id"]
-        await client.execute(kernel_id, "function_results = []")
+        await client.execute(kernel_id, "function_results = []\nSECRETS = {}")
     if not tools:
         tools = await tool_client.get_tools()
-    ch = (prompt | llm.bind_tools(tools, parallel_tool_calls=False)).with_retry()
     if state["messages"][-1].type == "human":
         user_input = state["messages"][-1].content
         files = state["messages"][-1].additional_kwargs.get("files", [])
         file_prompt = []
         for idx, file in enumerate(files):
-            file_prompt.append(
-                f"""Файл ![](graph:{idx})\nЗагружен по пути: '{file['path']}'"""
-            )
-            if "file_id" in file:
+            file_prompt.append(f"""Файл загружен по пути: '{file['path']}'""")
+            if "image_path" in file:
                 file_prompt[
                     -1
-                ] += f"\nФайл является изображением его id: '{file['file_id']}'"
-                file_ids.append(file["file_id"])
+                ] += f"\nФайл является изображением его можно отобразить с помощью: '![алт-текст](attachment:{file['image_path']})'."
         file_prompt = (
             "<files_data>" + "\n----\n".join(file_prompt) + "</files_data>"
             if len(file_prompt)
@@ -119,7 +117,7 @@ async def agent(state: AgentState):
         selected = state["messages"][-1].additional_kwargs.get("selected", {})
         selected_items = []
         for key, value in selected.items():
-            selected_items.append(f"""![{value}](graph:{key})""")
+            selected_items.append(f"""![{value}](attachment:{key})""")
         selected_prompt = ""
         if selected_items:
             selected_items = "\n".join(selected_items)
@@ -129,26 +127,142 @@ async def agent(state: AgentState):
         state["messages"][
             -1
         ].content = f"<task>{user_input}</task> Активно планируй и следуй своему плану! Действуй по простым шагам!{generate_user_info(state)}\n{file_prompt}\n{selected_prompt}\nСледующий шаг: "
-    message = await ch.ainvoke({"messages": state["messages"]})
-    message.additional_kwargs.pop("function_call", None)
-    message.additional_kwargs["rendered"] = True
+    filtered_tools = []
+    for tool in tools:
+        if tool["name"] in TOOLS_AGENT_CHECKS:
+            if not await run_checks(tool_name=tool["name"], state=state):
+                continue
+        filtered_tools.append(tool)
     return {
-        "messages": [state["messages"][-1], message],
+        "messages": [state["messages"][-1]],
         "kernel_id": kernel_id,
-        "tools": tools,
-        "file_ids": file_ids,
+        "tools": filtered_tools,
     }
 
 
-async def tool_call(
-    state: AgentState,
-    store: BaseStore,
-):
-    tool_client = ToolClient(
-        base_url=os.getenv("TOOL_CLIENT_API", "http://127.0.0.1:8811")
+NOTES_PROMPT = """
+====
+
+ДОПОЛНИТЕЛЬНЫЕ ИНСТРУКЦИИ
+
+Эти инструкции уточняют стиль и ожидания пользователя. Ты ОБЯЗАН учитывать их при выполнении каждой задачи.
+
+---
+{0}
+---
+
+====
+"""
+
+SECRETS_PROMPTS = """
+====
+
+СЕКРЕТЫ (SECRETS)
+
+Пользователь предоставил тебе доступ к конфиденциальным данным (токенам, API ключам, паролям и другим секретам).
+
+# Правила работы с секретами
+
+1. **Доступ в коде**: Все секреты доступны в инструменте `python` через словарь `SECRETS`.
+2. **Синтаксис использования**: 
+   ```python
+   # Получение значения секрета
+   api_key = SECRETS["название_секрета"]
+   token = SECRETS["github_token"]
+   ```
+3. **БЕЗОПАСНОСТЬ (КРИТИЧНО)**:
+   - НИКОГДА не выводи значения секретов в открытом виде
+   - НИКОГДА не включай значения секретов в print(), return или любой другой вывод
+   - НИКОГДА не передавай значения секретов в сообщениях пользователю
+   - МОЖНО упоминать названия секретов (например: "Использую секрет 'api_key'")
+   - МОЖНО упоминать описания секретов
+   - МОЖНО говорить о типе секрета (токен, пароль, ключ)
+4. **Обработка ошибок**: Если секрет не найден, сообщи пользователю название отсутствующего секрета, но НЕ его значение.
+
+# Доступные секреты
+
+{0}
+====
+"""
+
+
+def get_user_notes(state: AgentState):
+    instructions = os.getenv("GIGA_AGENT_USER_NOTES", "") + state.get(
+        "instructions", ""
     )
+    if instructions:
+        return NOTES_PROMPT.format(instructions)
+    return ""
+
+
+async def get_user_secrets(state: AgentState):
+    user_secrets = state.get("secrets", [])
+    if not user_secrets:
+        return ""
+    secret_parts = []
+    code_parts = []
+    for user_secret in user_secrets:
+        name = user_secret.get("name")
+        value = user_secret.get("value")
+        description = user_secret.get("description")
+        if not name or not value:
+            continue
+        secret_part = (
+            f"Название: {user_secret['name']}\nЗначение: {user_secret['value'][:4]}..."
+        )
+        if description:
+            secret_part += f"\nОписание: {description}"
+        secret_parts.append(secret_part)
+        code_parts.append(f"SECRETS['{name}'] = '{value}'")
+    await client.execute(state.get("kernel_id"), "\n".join(code_parts))
+    return SECRETS_PROMPTS.format("\n".join(secret_parts))
+
+
+async def agent(state: AgentState):
+    mcp_tools = [
+        transform_tool(
+            {
+                "name": tool["name"],
+                "description": tool.get("description", "."),
+                "parameters": tool.get("inputSchema", {}),
+            }
+        )
+        for tool in state.get("mcp_tools", [])
+    ]
+    ch = (
+        prompt | llm.bind_tools(state["tools"] + mcp_tools, parallel_tool_calls=False)
+    ).with_retry()
+    message = await ch.ainvoke(
+        {
+            "messages": state["messages"],
+            "rag_info": get_rag_info(state.get("collections", [])),
+            "user_instructions": get_user_notes(state),
+            "user_secrets": await get_user_secrets(state),
+        }
+    )
+    message.additional_kwargs.pop("function_call", None)
+    message.additional_kwargs["rendered"] = True
+    return {"messages": [message]}
+
+
+async def tool_call(state: AgentState, config: RunnableConfig):
     action = copy.deepcopy(state["messages"][-1].tool_calls[0])
-    value = interrupt({"type": "approve"})
+    is_frontend_tool = False
+    for tool in state.get("mcp_tools", []):
+        if tool.get("name") == action.get("name"):
+            is_frontend_tool = True
+            break
+    if is_frontend_tool:
+        value = interrupt(
+            {
+                "type": "tool_call",
+                "tool_name": action.get("name"),
+                "args": action.get("args"),
+            }
+        )
+    else:
+        value = interrupt({"type": "approve"})
+    tool_client = ToolClient()
     if value.get("type") == "comment":
         return {
             "messages": ToolMessage(
@@ -162,7 +276,7 @@ async def tool_call(
             )
         }
     tool_call_index = state.get("tool_call_index", -1)
-    if action.get("name") == "python":
+    if action.get("name") == "python" and not is_frontend_tool:
         if os.getenv("REPL_FROM_MESSAGE", "1") == "1":
             action["args"]["code"] = get_code_arg(state["messages"][-1].content)
         else:
@@ -180,31 +294,53 @@ async def tool_call(
                     ),
                 )
             }
-        action["args"]["code"] = prepend_code(action["args"]["code"], state)
-    file_ids = []
+        action["args"]["code"] = prepend_code(
+            action["args"]["code"],
+            state,
+            config["metadata"]["thread_id"],
+            config["metadata"]["checkpoint_id"],
+        )
     try:
-        state_ = copy.deepcopy(state)
-        state_.pop("messages")
-        tool_client.set_state(state_)
-        if action.get("name") not in AGENT_MAP:
-            result = await tool_client.aexecute(action.get("name"), action.get("args"))
+        tool_attachments = []
+        if not is_frontend_tool:
+            message = ""
+            state_ = copy.deepcopy(state)
+            state_.pop("messages")
+            tool_client.set_state_data(
+                config["metadata"]["thread_id"], config["metadata"]["checkpoint_id"]
+            )
+            if action.get("name") not in AGENT_MAP:
+                result = await tool_client.aexecute(
+                    action.get("name"), action.get("args")
+                )
+            else:
+                tool_node = ToolNode(tools=list(AGENT_MAP.values()))
+                injected_args = tool_node.inject_tool_args(
+                    {
+                        "name": action.get("name"),
+                        "args": action.get("args"),
+                        "id": "123",
+                    },
+                    state,
+                    None,
+                )["args"]
+                result = await AGENT_MAP[action.get("name")].ainvoke(injected_args)
+            try:
+                result = json.loads(result)
+            except Exception as e:
+                pass
         else:
-            tool_node = ToolNode(tools=list(AGENT_MAP.values()))
-            injected_args = tool_node.inject_tool_args(
-                {"name": action.get("name"), "args": action.get("args"), "id": "123"},
-                state,
-                None,
-            )["args"]
-            result = await AGENT_MAP[action.get("name")].ainvoke(injected_args)
+            result, tool_attachments, message = await process_mcp_content(
+                value.get("result", {}).get("content", {}),
+                config["metadata"]["thread_id"],
+            )
         tool_call_index += 1
-        try:
-            result = json.loads(result)
-        except Exception as e:
-            pass
+
         if result:
             add_data = {
                 "data": result,
-                "message": f"Результат функции сохранен в переменную `function_results[{tool_call_index}]['data']` ",
+                "message": message
+                + f"Результат функции сохранен в переменную `function_results[{tool_call_index}]['data']` ",
             }
             await client.execute(
                 state.get("kernel_id"), f"function_results.append({repr(add_data)})"
@@ -222,44 +358,12 @@ async def tool_call(
             if action.get("name") == "get_urls":
                 add_data["message"] += result.pop("attention")
         else:
+            if message:
+                result = {"result": result, "message": message}
             add_data = result
-        tool_attachments = []
         if isinstance(result, dict) and "giga_attachments" in result:
             add_data = result
-            attachments = result.pop("giga_attachments")
-            file_ids = [attachment["file_id"] for attachment in attachments]
-            for attachment in attachments:
-                if attachment["type"] == "text/html":
-                    await store.aput(
-                        ("html",),
-                        attachment["file_id"],
-                        attachment,
-                        ttl=None,
-                        index=False,
-                    )
-                elif attachment["type"] == "audio/mp3":
-                    await store.aput(
-                        ("audio",),
-                        attachment["file_id"],
-                        attachment,
-                        ttl=None,
-                        index=False,
-                    )
-                else:
-                    await store.aput(
-                        ("attachments",),
-                        attachment["file_id"],
-                        attachment,
-                        ttl=None,
-                        index=False,
-                    )
-
-                tool_attachments.append(
-                    {
-                        "type": attachment["type"],
-                        "file_id": attachment["file_id"],
-                    }
-                )
+            tool_attachments = result.pop("giga_attachments")
         message = ToolMessage(
             tool_call_id=action.get("id", str(uuid4())),
             content=json.dumps(add_data, ensure_ascii=False),
@@ -275,7 +379,6 @@ async def tool_call(
     return {
         "messages": [message],
         "tool_call_index": tool_call_index,
-        "file_ids": file_ids,
     }
 
 
@@ -287,9 +390,11 @@ def router(state: AgentState) -> Literal["tool_call", "__end__"]:
 
 
 workflow = StateGraph(AgentState)
+workflow.add_node(before_agent)
 workflow.add_node(agent)
 workflow.add_node(tool_call)
-workflow.add_edge("__start__", "agent")
+workflow.add_edge("__start__", "before_agent")
+workflow.add_edge("before_agent", "agent")
 workflow.add_conditional_edges("agent", router)
 workflow.add_edge("tool_call", "agent")
 
