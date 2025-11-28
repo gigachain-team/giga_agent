@@ -1,13 +1,15 @@
 import React from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import {
-  Check,
   ChevronRight,
   Plus,
   Printer,
   Files,
   Settings as SettingsIcon,
+  Trash2,
+  MessageSquare,
 } from "lucide-react";
+import axios from "axios";
 import LogoImage from "../assets/logo.png";
 import LogoWhiteImage from "../assets/logo-white.png";
 import QRImage from "../assets/qr.png";
@@ -16,6 +18,12 @@ import { useEffect, useRef, useState } from "react";
 import { ragEnabled } from "@/components/rag/utils.ts";
 import { Switch } from "@/components/ui/switch";
 
+interface ThreadItem {
+  thread_id: string;
+  title: string;
+  created_at: string;
+}
+
 interface SidebarProps {
   children: React.ReactNode;
   onNewChat: () => void;
@@ -23,10 +31,27 @@ interface SidebarProps {
 
 const SidebarComponent = ({ children, onNewChat }: SidebarProps) => {
   const navigate = useNavigate();
+  const { threadId } = useParams<{ threadId?: string }>();
   const { settings, setSettings } = useSettings();
   const [isDark, setIsDark] = useState<boolean>(false);
+  const [threads, setThreads] = useState<ThreadItem[]>([]);
 
   const didInitRef = useRef<boolean>(false);
+
+  const fetchThreads = async () => {
+    try {
+      const response = await axios.get("/graph/threads/");
+      setThreads(response.data);
+    } catch (error) {
+      console.error("Failed to fetch threads:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchThreads();
+    const interval = setInterval(fetchThreads, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Инициализация темы из системных настроек/локального значения (без анимации)
   useEffect(() => {
@@ -112,6 +137,25 @@ const SidebarComponent = ({ children, onNewChat }: SidebarProps) => {
   const handleNewChat = () => {
     navigate("/");
     onNewChat();
+    fetchThreads();
+  };
+
+  const handleThreadClick = (id: string) => {
+    navigate(`/threads/${id}`);
+  };
+
+  const handleDeleteThread = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    try {
+      await axios.delete(`/graph/threads/${id}/`);
+      setThreads(threads.filter((t) => t.thread_id !== id));
+      if (threadId === id) {
+        navigate("/");
+        onNewChat();
+      }
+    } catch (error) {
+      console.error("Failed to delete thread:", error);
+    }
   };
 
   return (
@@ -130,7 +174,7 @@ const SidebarComponent = ({ children, onNewChat }: SidebarProps) => {
       {/* Sidebar */}
       <div
         className={[
-          "fixed top-0 left-0 h-full w-[250px] p-5 backdrop-blur-2xl rounded-r-lg z-[100] transition-transform duration-300 ease-in-out print:hidden",
+          "fixed top-0 left-0 h-full w-[250px] p-5 backdrop-blur-2xl rounded-r-lg z-[100] transition-transform duration-300 ease-in-out print:hidden flex flex-col",
           "bg-card border text-card-foreground",
           settings.sideBarOpen ? "translate-x-0" : "-translate-x-[250px]",
           "max-[900px]:rounded-none",
@@ -198,6 +242,37 @@ const SidebarComponent = ({ children, onNewChat }: SidebarProps) => {
           />
           <span className="ml-2">Тёмная тема</span>
         </label>
+
+        {/* История диалогов */}
+        <div className="mt-4 flex-1 overflow-y-auto max-h-[calc(100vh-450px)]">
+          <div className="text-xs text-gray-500 px-2 py-1 uppercase tracking-wide">
+            История диалогов
+          </div>
+          {threads.map((thread) => (
+            <div
+              key={thread.thread_id}
+              className={[
+                "flex items-center justify-between p-2 text-sm rounded-lg cursor-pointer group",
+                threadId === thread.thread_id
+                  ? "bg-white/15"
+                  : "hover:bg-white/10",
+              ].join(" ")}
+              onClick={() => handleThreadClick(thread.thread_id)}
+            >
+              <div className="flex items-center flex-1 overflow-hidden">
+                <MessageSquare size={16} className="mr-2 flex-shrink-0" />
+                <span className="truncate">{thread.title}</span>
+              </div>
+              <button
+                className="p-1 rounded text-gray-500 opacity-0 group-hover:opacity-100 hover:text-red-400 transition-opacity"
+                onClick={(e) => handleDeleteThread(e, thread.thread_id)}
+                title="Удалить диалог"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+          ))}
+        </div>
 
         <div
           className="w-[150px] h-[150px] mt-2 bg-cover invert opacity-90 dark:invert-0 dark:opacity-100"
